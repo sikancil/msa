@@ -1,0 +1,11 @@
+{
+  "name": "@arifwidianto/msa-core",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}

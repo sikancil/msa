@@ -1,0 +1,11 @@
+{
+  "name": "msa-framework-monorepo",
+  "private": true,
+  "devDependencies": {
+    "lerna": "^8.2.2",
+    "typescript": "^5.8.3"
+  },
+  "workspaces": [
+    "packages/*"
+  ]
+}
