@@ -1,0 +1,19 @@
+{
+  "name": "@arifwidianto/msa-plugin-websocket",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "@arifwidianto/msa-core": "0.1.0",
+    "@types/ws": "^8.5.10"
+  },
+  "peerDependencies": {
+    "@arifwidianto/msa-core": "0.1.0"
+  },
+  "dependencies": {
+    "ws": "^8.17.0"
+  }
+}
