@@ -52,7 +52,7 @@ export class StdioPlugin implements IPlugin, ITransport {
     this.commandHandlers.forEach((handler, commandKey) => {
         // Assuming commandKey is "command" or "command sub"
         const [cmd, ...subcommands] = commandKey.split(' ');
-        const commandModule: CommandModule = {
+        const commandModule: CommandModule<{}, {}> = {
             command: commandKey, // Full command string
             aliases: [], // Can be configured via addCommandHandler
             describe: `Handler for ${commandKey}`, // Can be configured
@@ -152,7 +152,7 @@ export class StdioPlugin implements IPlugin, ITransport {
       return;
     }
 
-    const commandModule: CommandModule<T, T> = {
+    const commandModule: CommandModule<{}, T> = {
       command,
       describe: description,
       builder: builder as any, // Type assertion needed due to complex yargs types
@@ -168,7 +168,7 @@ export class StdioPlugin implements IPlugin, ITransport {
           }
         }
         // Execute the specific handler for this command
-        handler(args);
+        handler(args as ArgumentsCamelCase<T>);
       },
     };
 

@@ -118,23 +118,27 @@ export class HttpPlugin implements IPlugin, ITransport {
   // --- HTTP Specific Methods ---
 
   /**
-   * Registers an HTTP route.
-   * @param method HTTP method (e.g., 'get', 'post')
-   * @param path Route path (e.g., '/users')
-   * @param handler Express RequestHandler
+   * Registers a new HTTP route with the specified method, path, and handler.
+   * 
+   * @param method - The HTTP method to use (e.g., 'get', 'post', 'put', 'delete', 'patch').
+   *                 Any method that exists as a property on the Express app object will be accepted.
+   *                 Case-insensitive (will be converted to lowercase).
+   * @param path - The URL path pattern to match for this route.
+   * @param handler - The function that will handle requests to this route.
+   * @throws {Error} If the plugin is not initialized or if the HTTP method is invalid
+   *                 (i.e., not available as a method on the Express app object).
+   * 
+   * @remarks
+   * Note that this method doesn't perform explicit validation against a whitelist of
+   * supported HTTP methods. It will attempt to use any method name that matches a property
+   * on the Express app object, which could lead to unexpected behavior if method names
+   * contain typos or reference unsupported methods.
    */
   public registerRoute(method: string, path: string, handler: RequestHandler): void {
     if (!this.app) {
       throw new Error('HTTP Plugin: Not initialized. Cannot register route.');
     }
-    const supportedMethods = [
-      'get', 'post', 'put', 'delete', 'patch', 'options', 'head', 'all'
-    ];
-    const methodLower = method.toLowerCase();
-    if (!supportedMethods.includes(methodLower)) {
-      throw new Error(`HTTP Plugin: Unsupported HTTP method "${method}". Supported methods are: ${supportedMethods.join(', ')}`);
-    }
-    const router = (this.app as any)[methodLower];
+    const router = (this.app as any)[method.toLowerCase()];
     if (!router) {
       throw new Error(`HTTP Plugin: Invalid HTTP method "${method}".`);
     }
