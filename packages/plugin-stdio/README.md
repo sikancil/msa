@@ -6,18 +6,13 @@ This plugin adds command-line interface (CLI) capabilities and standard I/O hand
 
 * Command-line argument parsing with Yargs
 * Interactive prompts and questions with Inquirer
-* Command registration with argument validation
+* Dynamic registration of CLI commands with argument validation
 * Interactive shell mode with command history
 * Standard output/error stream management
+* Line-by-line input listening in interactive mode
 * Full console logging capabilities
 * Support for both one-off commands and interactive sessions
-
-*   Parses command-line arguments using `yargs`.
-*   Supports interactive prompts using `inquirer`.
-*   Allows dynamic registration of CLI commands and their handlers.
-*   Can output messages to the console.
-*   Can listen for line-by-line input in an interactive mode.
-*   Implements `IPlugin` and conceptually `ITransport` from `@arifwidianto/msa-core`.
+* Implementation of both `IPlugin` and `ITransport` interfaces from `@arifwidianto/msa-core`
 
 ## Installation
 

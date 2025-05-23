@@ -13,7 +13,7 @@ const mockLoggerInstance = {
 
 // Mock Service
 const mockServiceInstance = {
-  getLogger: jest.fn(() => mockLoggerInstance as unknown as Logger),
+  getLogger: jest.fn(() => mockLoggerInstance as unknown as typeof Logger),
   // Add other Service methods if your plugin uses them
 };
 
@@ -135,8 +135,10 @@ describe('MessageBrokerPlugin', () => {
       handler = jest.fn();
     });
 
-    it('listen() should call RabbitMQService.subscribe', async () => {
-      await plugin.listen(testQueue, handler);
+    it('listen() should set up default queue/topic', async () => {
+      await plugin.listen(testQueue);
+      // Now call subscribeToTopic separately with the handler
+      await plugin.subscribeToTopic(testQueue, handler);
       expect(mockRabbitMQServiceInstance.subscribe).toHaveBeenCalledWith(testQueue, handler);
     });
 
@@ -163,7 +165,6 @@ describe('MessageBrokerPlugin', () => {
     const testChannel = 'test-chan';
     const testMessage: Message = 'redis message';
     let handler: jest.Mock<MessageHandler>;
-    let handler: jest.Mock<MessageHandler>;
 
     beforeEach(async () => {
       // Ensure RedisPubSubService is mocked for each test in this describe block if plugin is re-initialized
@@ -173,7 +174,7 @@ describe('MessageBrokerPlugin', () => {
     });
 
     it('listen() should call RedisPubSubService.subscribe', async () => {
-      await plugin.listen(testChannel, handler);
+      await plugin.listen(testChannel);
       expect(mockRedisPubSubServiceInstance.subscribe).toHaveBeenCalledWith(testChannel, handler);
     });
 

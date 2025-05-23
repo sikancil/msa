@@ -9,7 +9,7 @@ const mockLoggerInstance = {
   error: jest.fn(),
   debug: jest.fn(),
 };
-const MockLogger = mockLoggerInstance as unknown as Logger; // Cast to Logger type for MCPServer constructor
+const MockLogger = mockLoggerInstance as unknown as typeof Logger; // Cast to Logger type for MCPServer constructor
 
 // Mock ITransport
 const mockTransportInstance: ITransport = {

@@ -32,3 +32,5 @@ export const Logger = {
   // A method to get the raw pino instance if needed for advanced configuration
   getInstance: () => logger, 
 };
+
+export type LoggerType = typeof logger;

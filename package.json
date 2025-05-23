@@ -1,5 +1,5 @@
 {
-  "name": "msa-framework-monorepo",
+  "name": "@arifwidianto/msa",
   "private": true,
   "devDependencies": {
     "lerna": "^8.2.2",

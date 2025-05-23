@@ -1,30 +1,33 @@
-import { createClient, RedisClientType, RedisClientOptions } from 'redis';
+import { createClient } from 'redis';
 import { Logger, Message, MessageHandler } from '@arifwidianto/msa-core';
 import { RedisConfig } from './MessageBrokerPluginConfig';
 
+// Define the Redis client type without the complex generics
+type RedisClient = ReturnType<typeof createClient>;
+
 export class RedisPubSubService {
-  private publisher: RedisClientType;
-  private subscriber: RedisClientType; // Redis requires separate clients for pub and sub operations when sub is active
+  private publisher: RedisClient;
+  private subscriber: RedisClient; // Redis requires separate clients for pub and sub operations when sub is active
   private config: RedisConfig;
-  private logger: Logger;
+  private logger: typeof Logger;
   private messageHandlers: Map<string, MessageHandler[]> = new Map(); // channelName -> handlers
   private activeRedisSubscriptions: Map<string, boolean> = new Map(); // Tracks if a channel has an active Redis client subscription
 
-  constructor(config: RedisConfig, logger: Logger) {
+  constructor(config: RedisConfig, logger: typeof Logger) {
     this.config = config;
     this.logger = logger;
 
-    const clientOptions: RedisClientOptions = {
+    const clientOptions = {
       url: config.url, // url takes precedence
       socket: config.url ? undefined : { host: config.host || 'localhost', port: config.port || 6379 },
       password: config.password,
     };
 
     this.publisher = createClient(clientOptions);
-    this.subscriber = this.publisher.duplicate(); // Duplicate client for subscribing
+    this.subscriber = createClient(clientOptions); // Create a separate client for subscribing
 
-    this.publisher.on('error', (err) => this.logger.error({ err }, 'Redis Publisher Error'));
-    this.subscriber.on('error', (err) => this.logger.error({ err }, 'Redis Subscriber Error'));
+    this.publisher.on('error', (err) => this.logger.error(`Redis Publisher Error: ${err.message}`));
+    this.subscriber.on('error', (err) => this.logger.error(`Redis Subscriber Error: ${err.message}`));
   }
 
   async connect(): Promise<void> {
@@ -32,8 +35,8 @@ export class RedisPubSubService {
       await this.publisher.connect();
       await this.subscriber.connect();
       this.logger.info('Connected to Redis for Pub/Sub');
-    } catch (error) {
-      this.logger.error({ error }, 'Failed to connect to Redis');
+    } catch (error: any) {
+      this.logger.error(`Failed to connect to Redis: ${error.message}`);
       throw error;
     }
   }
@@ -51,9 +54,9 @@ export class RedisPubSubService {
     const messageString = typeof message === 'object' ? JSON.stringify(message) : String(message);
     try {
         await this.publisher.publish(fullChannel, messageString);
-        this.logger.debug({ channel: fullChannel }, 'Message published to Redis channel');
-    } catch (error) {
-        this.logger.error({ error, channel: fullChannel }, 'Error publishing message to Redis');
+        this.logger.debug(`Message published to Redis channel ${fullChannel}`);
+    } catch (error: any) {
+        this.logger.error(`Error publishing message to Redis channel ${fullChannel}: ${error.message}`);
         throw error;
     }
   }
@@ -85,9 +88,8 @@ export class RedisPubSubService {
             } else {
                  parsedMessage = message;
             }
-          } catch (e) {
-            parsedMessage = message; // If JSON.parse fails, treat as plain string
-            this.logger.debug({ channel: subscribedChannel, error: e }, 'Failed to parse incoming message as JSON, treating as string.');
+          } catch (e) {                parsedMessage = message; // If JSON.parse fails, treat as plain string
+            this.logger.debug(`Failed to parse incoming message from channel ${subscribedChannel} as JSON, treating as string.`);
           }
           
           const handlers = this.messageHandlers.get(subscribedChannel);
@@ -96,16 +98,16 @@ export class RedisPubSubService {
             handlers.forEach(handler => {
                 try {
                     handler(parsedMessage);
-                } catch (handlerError) {
-                    this.logger.error({ error: handlerError, channel: subscribedChannel }, 'Error in Redis message handler');
+                } catch (handlerError: any) {
+                    this.logger.error(`Error in Redis message handler for channel ${subscribedChannel}: ${handlerError.message}`);
                 }
             });
           }
         });
         this.activeRedisSubscriptions.set(fullChannel, true);
         this.logger.info(`Successfully subscribed to Redis channel: ${fullChannel}`);
-      } catch (error) {
-          this.logger.error({ error, channel: fullChannel }, 'Error subscribing to Redis channel');
+      } catch (error: any) {
+          this.logger.error(`Error subscribing to Redis channel ${fullChannel}: ${error.message}`);
           // If subscription failed, remove the handler that was optimistically added.
           const handlers = this.messageHandlers.get(fullChannel);
           if (handlers) {
@@ -151,8 +153,8 @@ export class RedisPubSubService {
         try {
             await this.subscriber.unsubscribe(fullChannel);
             this.logger.info(`Successfully unsubscribed from Redis channel: ${fullChannel}`);
-        } catch (error) {
-            this.logger.error({ error, channel: fullChannel }, 'Error unsubscribing from Redis channel');
+        } catch (error: any) {
+            this.logger.error(`Error unsubscribing from Redis channel ${fullChannel}: ${error.message}`);
             // Even if unsubscribe fails, we mark it as inactive locally, as we have no more handlers.
         }
       } else {
@@ -174,7 +176,7 @@ export class RedisPubSubService {
         await this.subscriber.quit();
       }
     } catch (error) {
-        this.logger.error({ error }, 'Error during Redis subscriber quit/unsubscribeAll.');
+        this.logger.error('Error during Redis subscriber quit/unsubscribeAll.', { error });
     } finally {
         this.activeRedisSubscriptions.clear();
         this.messageHandlers.clear(); // Clear all local handlers
@@ -185,7 +187,7 @@ export class RedisPubSubService {
         await this.publisher.quit();
       }
     } catch (error) {
-        this.logger.error({ error }, 'Error during Redis publisher quit.');
+        this.logger.error('Error during Redis publisher quit.', { error });
     }
     
     this.logger.info('Redis Pub/Sub connections closed.');

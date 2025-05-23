@@ -1,34 +1,38 @@
-import { IPlugin, ITransport, Logger, Service, Message, MessageHandler, PluginConfig } from '@arifwidianto/msa-core';
-import { MessageBrokerPluginConfig, RabbitMQConfig, RedisConfig } from './MessageBrokerPluginConfig'; // Import RedisConfig
+import { IPlugin, ITransport, Message, MessageHandler, Service } from '@arifwidianto/msa-core';
+import { MessageBrokerPluginConfig } from './MessageBrokerPluginConfig';
 import { RabbitMQService } from './rabbitmq.service';
-import { RedisPubSubService } from './redis.service'; // Import RedisPubSubService
+import { RedisPubSubService } from './redis.service';
+import { Logger } from '@arifwidianto/msa-core';
 
 export class MessageBrokerPlugin implements IPlugin, ITransport {
-  name = 'msa-plugin-messagebroker';
-  version = '0.1.0';
-  dependencies: string[] = [];
+  public readonly name = 'msa-plugin-messagebroker';
+  public readonly version = '0.1.0';
+  public readonly dependencies: string[] = [];
   
   private config!: MessageBrokerPluginConfig;
-  private logger!: Logger;
+  private logger!: typeof Logger;
   private rabbitmqService?: RabbitMQService;
   private redisService?: RedisPubSubService;
+  private defaultMessageHandler?: MessageHandler;
 
-  // Store consumerTags/subscriptionIds to manage subscriptions via ITransport methods
-  // For RabbitMQ, value is { queueName, consumerTag }
-  // For Redis, value is { channelName, isRedis: true } (consumerTag concept doesn't directly map)
-  private transportSubscriptions: Map<string, { type: 'rabbitmq' | 'redis', queueOrChannelName: string, rabbitConsumerTag?: string, specificHandler?: MessageHandler }> = new Map();
+  // Store subscriptions for management
+  private transportSubscriptions: Map<string, { 
+    type: 'rabbitmq' | 'redis', 
+    queueOrChannelName: string, 
+    rabbitConsumerTag?: string, 
+    specificHandler?: MessageHandler 
+  }> = new Map();
+  
   private nextSubscriptionId = 0;
 
 
   async initialize(config: MessageBrokerPluginConfig, service?: Service): Promise<void> {
     this.config = config;
     
-    if (service && typeof service.getLogger === 'function') {
-      this.logger = service.getLogger(this.name);
-    } else {
-      this.logger = Logger; 
-      this.logger.warn(`${this.name}: Service instance or getLogger method not provided to initialize. Using global Logger.`);
-    }
+    // Always use the global Logger since Service doesn't have getLogger method
+    this.logger = Logger;
+    this.logger.info(`${this.name}: Initializing message broker plugin with config: ${JSON.stringify(config)}`);
+    
 
     if (config.clientType === 'rabbitmq' && config.rabbitmq) {
       this.logger.info('RabbitMQ client type configured. Initializing RabbitMQService.');
@@ -48,7 +52,7 @@ export class MessageBrokerPlugin implements IPlugin, ITransport {
         await this.rabbitmqService.connect();
         this.logger.info('RabbitMQService connected successfully.');
       } catch (error) {
-        this.logger.error({ error }, `${this.name}: Failed to connect RabbitMQService during start.`);
+        this.logger.error(`${this.name}: Failed to connect RabbitMQService during start.`, { error });
         throw error;
       }
     }
@@ -57,7 +61,7 @@ export class MessageBrokerPlugin implements IPlugin, ITransport {
         await this.redisService.connect();
         this.logger.info('RedisPubSubService connected successfully.');
       } catch (error) {
-        this.logger.error({ error }, `${this.name}: Failed to connect RedisPubSubService during start.`);
+        this.logger.error(`${this.name}: Failed to connect RedisPubSubService during start.`, { error });
         throw error;
       }
     }
@@ -91,42 +95,71 @@ export class MessageBrokerPlugin implements IPlugin, ITransport {
 
   // --- ITransport implementation ---
 
-  async listen(topicOrQueueName: string, handler?: MessageHandler): Promise<string | void> {
+  async listen(portOrTopic: number | string = "default"): Promise<void> {
+    this.logger.info(`${this.name}: listen() called with port/path: ${portOrTopic}`);
+    
+    // For message brokers, we'll interpret the port/path parameter as the default topic/queue/channel
+    // to listen on when onMessage is called without a specific topic
+    const defaultTopic = String(portOrTopic) || 'default';
+    
+    if (this.config) {
+      if (this.config.clientType === 'rabbitmq' && this.config.rabbitmq) {
+        // Store this as the default queue to subscribe to
+        this.config.rabbitmq.defaultQueue = this.config.rabbitmq.defaultQueue || { name: defaultTopic };
+      } else if (this.config.clientType === 'redis' && this.config.redis) {
+        // Store this as the default channel prefix
+        this.config.redis.defaultChannelPrefix = defaultTopic;
+      }
+    }
+    
+    return Promise.resolve();
+  }
+
+  // Extension method specific to MessageBrokerPlugin - not part of ITransport interface
+  async subscribeToTopic(topicName: string, handler: MessageHandler): Promise<string> {
     if (!handler) {
-       this.logger.warn(`No handler provided for listen/subscribe on: ${topicOrQueueName}. Subscription not created.`);
-       return;
+       this.logger.warn(`No handler provided for subscribe to topic: ${topicName}. Subscription not created.`);
+       throw new Error(`Handler is required for subscription to topic: ${topicName}`);
     }
     
     const subscriptionId = `msa-sub-${this.nextSubscriptionId++}`;
 
     if (this.rabbitmqService) {
       try {
-        const consumerTag = await this.rabbitmqService.subscribe(topicOrQueueName, handler);
+        const consumerTag = await this.rabbitmqService.subscribe(topicName, handler);
         if (consumerTag) {
-            this.transportSubscriptions.set(subscriptionId, { type: 'rabbitmq', queueOrChannelName: topicOrQueueName, rabbitConsumerTag: consumerTag, specificHandler: handler });
-            this.logger.info(`ITransport/RabbitMQ: Subscribed to queue '${topicOrQueueName}' with subscriptionId '${subscriptionId}' (consumerTag: ${consumerTag}).`);
+            this.transportSubscriptions.set(subscriptionId, { 
+              type: 'rabbitmq', 
+              queueOrChannelName: topicName, 
+              rabbitConsumerTag: consumerTag, 
+              specificHandler: handler 
+            });
+            this.logger.info(`${this.name}: Subscribed to queue '${topicName}' with ID '${subscriptionId}' (tag: ${consumerTag})`);
             return subscriptionId;
         } else {
-            // This branch might occur if RabbitMQService's subscribe decides not to return a new consumerTag (e.g. shared consumer)
-            // For ITransport, we still want a unique ID to manage this specific handler.
-            this.transportSubscriptions.set(subscriptionId, { type: 'rabbitmq', queueOrChannelName: topicOrQueueName, specificHandler: handler });
-            this.logger.info(`ITransport/RabbitMQ: Added handler to queue '${topicOrQueueName}' with subscriptionId '${subscriptionId}' (likely shared consumer).`);
+            // This might occur with a shared consumer
+            this.transportSubscriptions.set(subscriptionId, { 
+              type: 'rabbitmq', 
+              queueOrChannelName: topicName, 
+              specificHandler: handler 
+            });
+            this.logger.info(`${this.name}: Added handler to queue '${topicName}' with ID '${subscriptionId}'`);
             return subscriptionId;
         }
       } catch (error) {
-        this.logger.error({ error, queue: topicOrQueueName }, `ITransport/RabbitMQ: Error subscribing to queue '${topicOrQueueName}'.`);
+        this.logger.error(`ITransport/RabbitMQ: Error subscribing to queue '${topicName}'.`, { error, queue: topicName });
         throw error;
       }
     } else if (this.redisService) {
       try {
         // RedisPubSubService.subscribe returns the full channel name, which we can use directly or wrap.
         // For consistency with ITransport, we'll use our generated subscriptionId.
-        await this.redisService.subscribe(topicOrQueueName, handler);
-        this.transportSubscriptions.set(subscriptionId, { type: 'redis', queueOrChannelName: topicOrQueueName, specificHandler: handler });
-        this.logger.info(`ITransport/Redis: Subscribed to channel '${topicOrQueueName}' with subscriptionId '${subscriptionId}'.`);
+        await this.redisService.subscribe(topicName, handler);
+        this.transportSubscriptions.set(subscriptionId, { type: 'redis', queueOrChannelName: topicName, specificHandler: handler });
+        this.logger.info(`ITransport/Redis: Subscribed to channel '${topicName}' with subscriptionId '${subscriptionId}'.`);
         return subscriptionId;
       } catch (error) {
-        this.logger.error({ error, channel: topicOrQueueName }, `ITransport/Redis: Error subscribing to channel '${topicOrQueueName}'.`);
+        this.logger.error(`ITransport/Redis: Error subscribing to channel '${topicName}'.`, { error, channel: topicName });
         throw error;
       }
     } else {
@@ -161,8 +194,14 @@ export class MessageBrokerPlugin implements IPlugin, ITransport {
         // Note: Accessing private getFullChannelName is a bit of a hack for default; consider public default channel name property in RedisService.
 
      if (targetTopicOrQueue) {
-        this.listen(targetTopicOrQueue, handler).catch(err => {
-            this.logger.error({err, topicOrQueue: targetTopicOrQueue}, `ITransport.onMessage: Error setting up listener.`);
+        this.listen(targetTopicOrQueue).catch(err => {
+            this.logger.error(`ITransport.onMessage: Error setting up listener.`, {err, topicOrQueue: targetTopicOrQueue});
+
+            this.subscribeToTopic(targetTopicOrQueue, handler).then(subscriptionId => {
+                this.logger.info(`ITransport.onMessage: Listening for messages on topic/queue '${targetTopicOrQueue}' with subscriptionId '${subscriptionId}'.`);
+            }).catch(err => {
+                this.logger.error(`ITransport.onMessage: Error subscribing to topic/queue '${targetTopicOrQueue}'.`, { err });
+            });
         });
      } else {
         this.logger.error('ITransport.onMessage: Cannot call onMessage without a topic/queueName or default configured for the active client type.');

@@ -1,16 +1,16 @@
-import amqp from 'amqplib';
+import * as amqp from 'amqplib';
 import { Logger, Message, MessageHandler } from '@arifwidianto/msa-core';
 import { RabbitMQConfig } from './MessageBrokerPluginConfig';
 
 export class RabbitMQService {
-  private connection: amqp.Connection | null = null;
+  private connection: amqp.ChannelModel | null = null;
   private channel: amqp.Channel | null = null;
   private config: RabbitMQConfig;
-  private logger: Logger;
+  private logger: typeof Logger;
   private messageHandlers: Map<string, { handlers: MessageHandler[], consumerTag: string | null }> = new Map(); // queueName -> {handlers, consumerTag}
 
 
-  constructor(config: RabbitMQConfig, logger: Logger) {
+  constructor(config: RabbitMQConfig, logger: typeof Logger) {
     this.config = config;
     this.logger = logger;
   }
@@ -21,14 +21,14 @@ export class RabbitMQService {
       this.logger.info('Successfully connected to RabbitMQ server.');
       
       this.connection.on('error', (err) => {
-        this.logger.error({ err }, 'RabbitMQ connection error');
+        this.logger.error('RabbitMQ connection error', { err });
         // Handle connection error, e.g., attempt reconnect or cleanup
         this.connection = null; // Mark as disconnected
         this.channel = null;
       });
 
       this.connection.on('close', (err) => {
-        this.logger.info({ err }, 'RabbitMQ connection closed.');
+        this.logger.info('RabbitMQ connection closed.', { err });
         this.connection = null; // Mark as disconnected
         this.channel = null;
         // Optionally attempt to reconnect here
@@ -38,7 +38,7 @@ export class RabbitMQService {
       this.logger.info('RabbitMQ channel created.');
 
       this.channel.on('error', (err) => {
-        this.logger.error({ err }, 'RabbitMQ channel error');
+        this.logger.error('RabbitMQ channel error', { err });
         this.channel = null; // Mark channel as unusable
       });
 
@@ -69,7 +69,7 @@ export class RabbitMQService {
          }
       }
     } catch (error) {
-      this.logger.error({ error }, 'Failed to connect to RabbitMQ or setup defaults');
+      this.logger.error('Failed to connect to RabbitMQ or setup defaults', { error });
       throw error;
     }
   }
@@ -85,13 +85,13 @@ export class RabbitMQService {
         // publish returns a boolean indicating if the message was enqueued (if not, means backpressure)
         const success = this.channel.publish(exchange, routingKey, bufferContent, options);
         if (success) {
-            this.logger.debug({ exchange, routingKey, options }, 'Message published to RabbitMQ.');
+            this.logger.debug('Message published to RabbitMQ.', { exchange, routingKey, options });
         } else {
-            this.logger.warn({ exchange, routingKey, options }, 'RabbitMQ publish buffer is full. Message was not published.');
+            this.logger.warn('RabbitMQ publish buffer is full. Message was not published.', { exchange, routingKey, options });
             // Implement retry logic or backpressure handling if necessary
         }
     } catch (error) {
-        this.logger.error({ error, exchange, routingKey }, 'Error publishing message to RabbitMQ.');
+        this.logger.error('Error publishing message to RabbitMQ.', { error, exchange, routingKey });
         throw error;
     }
   }
@@ -123,7 +123,7 @@ export class RabbitMQService {
                 try {
                     handler(messageContent);
                 } catch (handlerError) {
-                    this.logger.error({ error: handlerError, queueName, messageId: msg.properties.messageId }, 'Error in message handler for queue');
+                    this.logger.error('Error in message handler for queue', { error: handlerError, queueName, messageId: msg.properties.messageId });
                     // Optionally, decide if message should be nack'd based on handler error
                 }
             });
@@ -171,7 +171,7 @@ export class RabbitMQService {
         this.logger.info(`Consumer (tag: ${resolvedConsumerTag}) cancelled for RabbitMQ queue: ${queueName}`);
         this.messageHandlers.delete(queueName); // Remove entry for queue
       } catch (error) {
-        this.logger.error({ error, queueName, consumerTag: resolvedConsumerTag }, 'Error cancelling RabbitMQ consumer');
+        this.logger.error('Error cancelling RabbitMQ consumer', { error, queueName, consumerTag: resolvedConsumerTag });
         // Potentially, the consumerTag is invalid or channel is closed.
       }
     } else if (queueData.handlers.length > 0) {
@@ -189,7 +189,7 @@ export class RabbitMQService {
                     await this.channel.cancel(data.consumerTag);
                     this.logger.info(`Consumer (tag: ${data.consumerTag}) cancelled for queue ${queueName} during close.`);
                 } catch (cancelError) {
-                    this.logger.error({ error: cancelError, queueName, consumerTag: data.consumerTag }, 'Error cancelling consumer during close.');
+                    this.logger.error('Error cancelling consumer during close.', { error: cancelError, queueName, consumerTag: data.consumerTag });
                 }
             }
         }
@@ -200,7 +200,7 @@ export class RabbitMQService {
         this.channel = null;
       }
     } catch (error) {
-        this.logger.error({ error }, 'Error closing RabbitMQ channel.');
+        this.logger.error('Error closing RabbitMQ channel.', { error });
     }
 
     try {
@@ -210,7 +210,7 @@ export class RabbitMQService {
         this.connection = null;
       }
     } catch (error) {
-        this.logger.error({ error }, 'Error closing RabbitMQ connection.');
+        this.logger.error('Error closing RabbitMQ connection.', { error });
     }
   }
 }

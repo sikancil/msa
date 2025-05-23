@@ -14,7 +14,12 @@ jest.mock('@arifwidianto/msa-core', () => ({
 }));
 
 // Mock 'ws' (WebSocket)
-const mockWebSocketInstance = {
+const mockWebSocketInstance: {
+  on: jest.Mock;
+  send: jest.Mock;
+  close: jest.Mock;
+  readyState: number;
+} = {
   on: jest.fn(),
   send: jest.fn(),
   close: jest.fn(),
@@ -224,7 +229,7 @@ describe('MCPClient', () => {
     it('should throw error if not connected', async () => {
       mockWebSocketInstance.readyState = WebSocket.CLOSED; // Simulate not connected
       // MCPClient's sendRequest now tries to connect, so we need to ensure that connect also fails for this test.
-      (WebSocket as jest.Mock).mockImplementationOnce(() => {
+      (WebSocket as unknown as jest.Mock).mockImplementationOnce(() => {
         const ws = { ...mockWebSocketInstance, readyState: WebSocket.CONNECTING };
         setTimeout(() => ws.on.mock.calls.find(c => c[0] === 'error')[1](new Error("Forced connect fail")), 50);
         return ws;
@@ -297,7 +302,7 @@ describe('MCPClient', () => {
       client = new MCPClient(serverUrl, true, 2, 1000); // Max 2 attempts, 1s interval
       let openCallback: any, errorCallback: any, closeCallback: any;
 
-      (WebSocket as jest.Mock).mockImplementation(() => {
+      (WebSocket as unknown as jest.Mock).mockImplementation(() => {
         // Ensure each new WebSocket mock instance gets its own event setup
         const newWsMock = { ...mockWebSocketInstance, on: jest.fn(), close: jest.fn(), readyState: WebSocket.CONNECTING };
         (newWsMock.on as jest.Mock).mockImplementation((event, callback) => {

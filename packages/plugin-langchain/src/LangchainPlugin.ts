@@ -102,6 +102,12 @@ export class LangchainPlugin implements IPlugin, ITransport {
       Logger.debug(`${this.name}: Invoking LLM chain with inputs: ${JSON.stringify(inputs)}`);
       const result = await chain.invoke(inputs);
 
+      // Guard against undefined or null result
+      if (result === undefined || result === null) {
+        Logger.warn(`${this.name}: LLM chain returned undefined or null result`);
+        return "No response received from LLM";
+      }
+
       // Handle different response formats
       if (typeof result === 'string') {
         Logger.debug(`${this.name}: LLM chain invocation successful. Response: ${result}`);
@@ -179,22 +185,85 @@ export class LangchainPlugin implements IPlugin, ITransport {
   private messageHandler: MessageHandler | null = null;
 
   public async send(message: Message): Promise<void> {
-    Logger.info(`${this.name}: send() called with message: ${JSON.stringify(message)}`);
+    Logger.info(`${this.name}: send() called with message type: ${typeof message}`);
     
-    // If message is a string or has content property, we can process it as a prompt
-    let promptContent: string;
+    // Extract prompt content from various message formats
+    let promptContent: string | BaseMessage[] = '';
+    
     if (typeof message === 'string') {
+      // Simple string message
       promptContent = message;
-    } else if (message && typeof message.content === 'string') {
-      promptContent = message.content;
+    } else if (Array.isArray(message)) {
+      // Check if it's an array of chat messages
+      if (message.length > 0 && (
+          'role' in message[0] || 
+          message[0] instanceof HumanMessage || 
+          message[0] instanceof SystemMessage || 
+          message[0] instanceof AIMessage)) {
+        
+        // Handle array of chat messages directly
+        if ('role' in message[0]) {
+          // Convert to LangChain message format if they're in role/content format
+          promptContent = message.map(msg => {
+            const chatMsg = msg as { role: string; content: string };
+            switch(chatMsg.role) {
+              case 'user': return new HumanMessage({ content: chatMsg.content });
+              case 'system': return new SystemMessage({ content: chatMsg.content });
+              case 'ai': case 'assistant': return new AIMessage({ content: chatMsg.content });
+              default: return new HumanMessage({ content: chatMsg.content });
+            }
+          });
+        } else {
+          // Already LangChain BaseMessage instances
+          promptContent = message as unknown as BaseMessage[];
+        }
+      } else {
+        // It's an array but not of chat messages - construct a prompt from array items
+        promptContent = message.map(item => 
+          typeof item === 'string' ? item : JSON.stringify(item)
+        ).join('\n');
+      }
+    } else if (message && typeof message === 'object') {
+      if (typeof message.content === 'string') {
+        // Object with a direct content property
+        promptContent = message.content;
+      } else if (message.messages && Array.isArray(message.messages)) {
+        // Object with a messages array (common pattern)
+        return this.send(message.messages); // Recursively process the messages array
+      } else if (message.prompt && typeof message.prompt === 'string') {
+        // Object with a prompt property
+        promptContent = message.prompt;
+      } else if (message.query && typeof message.query === 'string') {
+        // Object with a query property
+        promptContent = message.query;
+      } else if (message.text && typeof message.text === 'string') {
+        // Object with a text property
+        promptContent = message.text;
+      } else if (message.input && typeof message.input === 'string') {
+        // Object with an input property
+        promptContent = message.input;
+      } else {
+        // Create a structured prompt from object properties
+        const structuredPrompt = Object.entries(message)
+          .filter(([_, value]) => value !== undefined && value !== null)
+          .map(([key, value]) => {
+            const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
+            return `${key}: ${valueStr}`;
+          })
+          .join('\n');
+          
+        promptContent = structuredPrompt || JSON.stringify(message);
+      }
     } else {
-      // Attempt to stringify any other message format
-      promptContent = JSON.stringify(message);
+      // Fallback for null, undefined or other types
+      promptContent = message ? String(message) : '';
+      Logger.warn(`${this.name}: Received message of type ${typeof message}. Converting to string.`);
     }
     
     // Use the LLM to process the message if initialized
     if (this.llm) {
       try {
+        Logger.debug(`${this.name}: Invoking LLM with processed prompt`);
         const response = await this.llm.invoke(promptContent);
         Logger.debug(`${this.name}: Message processed successfully by LLM`);
 

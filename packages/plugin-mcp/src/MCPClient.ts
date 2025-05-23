@@ -33,12 +33,47 @@ export class MCPClient {
       return this.connectionPromise;
     }
 
+    // Reset connection handlers to ensure we don't have lingering callbacks
+    this.connectionResolve = null;
+    this.connectionReject = null;
+
     this.connectionPromise = new Promise((resolve, reject) => {
       this.connectionResolve = resolve;
       this.connectionReject = reject;
 
       Logger.info(`MCPClient: Connecting to ${this.serverUrl}...`);
       this.ws = new WebSocket(this.serverUrl);
+      
+      // Add connection timeout to avoid hanging forever
+      const connectionTimeout = setTimeout(() => {
+        if (this.connectionPromise && this.connectionReject) {
+          Logger.error(`MCPClient: Connection to ${this.serverUrl} timed out after 30s`);
+          this.connectionReject(new Error(`Connection to ${this.serverUrl} timed out`));
+          this.connectionResolve = null;
+          this.connectionReject = null;
+          this.connectionPromise = null;
+          
+          // Clean up the socket if it still exists
+          if (this.ws) {
+            this.ws.terminate(); // Force close the socket
+            this.ws = null;
+          }
+        }
+      }, 30000); // 30 seconds timeout
+      
+      // Create a wrapper to clear the timeout on success or other failures
+      const originalResolve = this.connectionResolve;
+      const originalReject = this.connectionReject;
+      
+      this.connectionResolve = () => {
+        clearTimeout(connectionTimeout);
+        if (originalResolve) originalResolve();
+      };
+      
+      this.connectionReject = (err) => {
+        clearTimeout(connectionTimeout);
+        if (originalReject) originalReject(err);
+      };
 
       this.ws.on('open', () => {
         Logger.info(`MCPClient: Successfully connected to ${this.serverUrl}.`);
@@ -53,8 +88,10 @@ export class MCPClient {
 
       this.ws.on('error', (err) => {
         Logger.error(`MCPClient: WebSocket error: ${err.message}`);
-        if (this.connectionPromise) {
-          this.connectionReject?.(err);
+        // Only reject the promise if it hasn't been resolved/rejected yet
+        if (this.connectionPromise && this.connectionReject) {
+          this.connectionReject(err);
+          // Immediately clear to prevent double calls
           this.connectionResolve = null;
           this.connectionReject = null;
           this.connectionPromise = null;
@@ -81,12 +118,18 @@ export class MCPClient {
               Logger.error(`MCPClient: Reconnect attempt ${this.reconnectAttempts} failed: ${reconnectError.message}`);
             });
           }, this.reconnectInterval);
-        } else if (this.autoReconnect && this.connectionPromise) {
+        } else if (this.autoReconnect) {
+          // Log the max reconnect attempts message regardless
           Logger.error(`MCPClient: Max reconnect attempts (${this.maxReconnectAttempts}) reached. Will not reconnect further.`);
-          this.connectionReject?.(new Error(`MCPClient: Connection closed. Code: ${code}, Reason: ${reasonStr}`));
-          this.connectionResolve = null;
-          this.connectionReject = null;
-          this.connectionPromise = null;
+          
+          // Only reject if we have an active promise and reject callback
+          if (this.connectionPromise && this.connectionReject) {
+            this.connectionReject(new Error(`MCPClient: Connection closed. Code: ${code}, Reason: ${reasonStr}`));
+            // Immediately clear to prevent double calls
+            this.connectionResolve = null;
+            this.connectionReject = null;
+            this.connectionPromise = null;
+          }
         }
       });
     });
@@ -176,6 +219,15 @@ export class MCPClient {
 
   public close(): void {
     this.autoReconnect = false; // Prevent reconnection on manual close
+    
+    // Clear any pending connection promises
+    if (this.connectionPromise && this.connectionReject) {
+      this.connectionReject(new Error('Connection manually closed'));
+      this.connectionResolve = null;
+      this.connectionReject = null;
+      this.connectionPromise = null;
+    }
+    
     if (this.ws) {
       Logger.info(`MCPClient: Manually closing connection to ${this.serverUrl}.`);
       this.ws.close();

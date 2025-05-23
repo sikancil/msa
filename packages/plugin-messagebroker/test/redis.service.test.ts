@@ -10,7 +10,7 @@ const mockLoggerInstance = {
   error: jest.fn(),
   debug: jest.fn(),
 };
-const MockLogger = mockLoggerInstance as unknown as Logger;
+const MockLogger = mockLoggerInstance as unknown as typeof Logger;
 
 // Mock 'redis' client
 const mockRedisClientInstance = {
