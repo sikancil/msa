@@ -103,7 +103,7 @@ describe('MCPPlugin', () => {
     });
   });
 
-  describe('Cleanup', ()_=> {
+  describe('Cleanup', () => {
     it('should close client and nullify resources', async () => {
       await plugin.initialize(config);
       const clientInstance = plugin.getClient(); // Get instance before cleanup

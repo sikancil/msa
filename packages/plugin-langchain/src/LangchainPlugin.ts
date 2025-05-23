@@ -31,7 +31,7 @@ export class LangchainPlugin implements IPlugin, ITransport {
 
       // Handle provider-specific configuration
       switch (this.config.provider.toLowerCase()) {
-        case 'azure':
+        case 'azure': {
           if (!this.config.providerOptions?.azure) {
             throw new Error(`${this.name}: Azure provider requires providerOptions.azure configuration`);
           }
@@ -42,22 +42,22 @@ export class LangchainPlugin implements IPlugin, ITransport {
           llmConfig.azureOpenAIApiInstanceName = azureConfig.instanceName;
           llmConfig.azureOpenAIApiDeploymentName = azureConfig.deploymentName;
           break;
-          
-        case 'openai':
+        }
+        case 'openai': {
           // Add any OpenAI specific configurations
           if (this.config.providerOptions?.openai?.organization) {
             llmConfig.organization = this.config.providerOptions.openai.organization;
           }
           break;
-
-        case 'anthropic':
+        }
+        case 'anthropic': {
           // Could implement Anthropic client initialization
           throw new Error(`${this.name}: Provider '${this.config.provider}' is configured but not yet implemented`);
-
-        case 'gemini':
+        }
+        case 'gemini': {
           // Could implement Google's Gemini client initialization
           throw new Error(`${this.name}: Provider '${this.config.provider}' is configured but not yet implemented`);
-          
+        }  
         default:
           throw new Error(`${this.name}: Unknown LLM provider '${this.config.provider}'`);
       }
@@ -176,6 +176,8 @@ export class LangchainPlugin implements IPlugin, ITransport {
     // We could use this to set up a local server for model inference if needed in the future
   }
 
+  private messageHandler: MessageHandler | null = null;
+
   public async send(message: Message): Promise<void> {
     Logger.info(`${this.name}: send() called with message: ${JSON.stringify(message)}`);
     
@@ -194,10 +196,22 @@ export class LangchainPlugin implements IPlugin, ITransport {
     if (this.llm) {
       try {
         const response = await this.llm.invoke(promptContent);
-        // The response handling is done by the caller of this method
         Logger.debug(`${this.name}: Message processed successfully by LLM`);
+
+        // Notify any registered message handlers about the response
+        if (this.messageHandler && typeof this.messageHandler === 'function') {
+          if (typeof response.content === 'string') {
+            this.messageHandler(response.content);
+          } else {
+            this.messageHandler(JSON.stringify(response.content));
+          }
+        }
       } catch (error) {
-        Logger.error(`${this.name}: Error processing message with LLM: ${error instanceof Error ? error.message : String(error)}`);
+        Logger.error(
+          `${this.name}: Error processing message with LLM: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
         throw error;
       }
     } else {
@@ -208,8 +222,7 @@ export class LangchainPlugin implements IPlugin, ITransport {
 
   public onMessage(handler: MessageHandler): void {
     Logger.info(`${this.name}: onMessage() handler registered.`);
-    // For Langchain plugin, we don't receive external messages directly as it's a provider
-    // rather than a consumer, but we implement the method for interface compliance
+    this.messageHandler = handler;
   }
   
   public async close(): Promise<void> {

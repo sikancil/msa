@@ -5,7 +5,7 @@ module.exports = {
   testMatch: ['<rootDir>/test/**/*.test.ts'],
   globals: {
     'ts-jest': {
-      tsconfig: '<rootDir>/tsconfig.json' // This should point to packages/plugin-mcp/tsconfig.json
+      tsconfig: '<rootDir>/tsconfig.json'
     }
   },
   moduleNameMapper: {
