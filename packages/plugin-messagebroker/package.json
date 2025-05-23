@@ -1,0 +1,21 @@
+{
+  "name": "@arifwidianto/msa-plugin-messagebroker",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@arifwidianto/msa-core": "0.1.0",
+    "amqplib": "^0.10.4",
+    "redis": "^4.6.13"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "@types/amqplib": "^0.10.5"
+  },
+  "peerDependencies": {
+    "@arifwidianto/msa-core": "0.1.0"
+  }
+}

@@ -127,14 +127,7 @@ export class HttpPlugin implements IPlugin, ITransport {
     if (!this.app) {
       throw new Error('HTTP Plugin: Not initialized. Cannot register route.');
     }
-    const supportedMethods = [
-      'get', 'post', 'put', 'delete', 'patch', 'options', 'head', 'all'
-    ];
-    const methodLower = method.toLowerCase();
-    if (!supportedMethods.includes(methodLower)) {
-      throw new Error(`HTTP Plugin: Unsupported HTTP method "${method}". Supported methods are: ${supportedMethods.join(', ')}`);
-    }
-    const router = (this.app as any)[methodLower];
+    const router = (this.app as any)[method.toLowerCase()];
     if (!router) {
       throw new Error(`HTTP Plugin: Invalid HTTP method "${method}".`);
     }

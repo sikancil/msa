@@ -1,0 +1,20 @@
+{
+  "name": "@arifwidianto/msa-plugin-langchain",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "langchain": "^0.1.36",
+    "@langchain/openai": "^0.0.28"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "@arifwidianto/msa-core": "0.1.0"
+  },
+  "peerDependencies": {
+    "@arifwidianto/msa-core": "0.1.0"
+  }
+}
