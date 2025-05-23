@@ -6,18 +6,14 @@ import { PromptTemplate } from '@langchain/core/prompts';
 import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages';
 
 // Mock Logger from @arifwidianto/msa-core
-jest.mock('@arifwidianto/msa-core', () => {
-  const originalModule = jest.requireActual('@arifwidianto/msa-core');
-  return {
-    ...originalModule,
-    Logger: {
-      info: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn(),
-      debug: jest.fn(),
-    },
-  };
-});
+jest.mock('@arifwidianto/msa-core', () => ({
+  Logger: {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+  },
+}));
 
 // Mock @langchain/openai
 const mockChatOpenAIInstance = {
@@ -46,7 +42,10 @@ jest.mock('@langchain/core/prompts', () => ({
 describe('LangchainPlugin', () => {
   let plugin: LangchainPlugin;
   const defaultConfig: LangchainPluginConfig = {
-    apiKey: 'test-api-key',
+    provider: 'openai',
+    auth: {
+      apiKey: 'test-api-key'
+    },
     defaultModelName: 'gpt-test',
   };
 
@@ -59,7 +58,7 @@ describe('LangchainPlugin', () => {
     it('should initialize ChatOpenAI with provided API key and model name', async () => {
       await plugin.initialize(defaultConfig);
       expect(ChatOpenAI).toHaveBeenCalledWith({
-        apiKey: defaultConfig.apiKey,
+        apiKey: defaultConfig.auth.apiKey,
         modelName: defaultConfig.defaultModelName,
         temperature: 0.7, // Default or configured temperature
       });
@@ -68,7 +67,10 @@ describe('LangchainPlugin', () => {
     });
 
     it('should use default model name if not provided in config', async () => {
-      const configNoModel: LangchainPluginConfig = { apiKey: 'test-api-key' };
+      const configNoModel: LangchainPluginConfig = { 
+        provider: 'openai',
+        auth: { apiKey: 'test-api-key' }
+      };
       await plugin.initialize(configNoModel);
       expect(ChatOpenAI).toHaveBeenCalledWith(expect.objectContaining({
         modelName: 'gpt-3.5-turbo', // Internal default
@@ -76,7 +78,10 @@ describe('LangchainPlugin', () => {
     });
 
     it('should throw error if API key is not provided', async () => {
-      const configNoApi: LangchainPluginConfig = { apiKey: '' };
+      const configNoApi: LangchainPluginConfig = { 
+        provider: 'openai',
+        auth: { apiKey: '' }
+      };
       await expect(plugin.initialize(configNoApi)).rejects.toThrow(
         `${plugin.name}: API key is missing in plugin configuration.`
       );

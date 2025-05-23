@@ -12,14 +12,28 @@ export class MCPServer {
   private requestHandlers: Map<string, MCPRequestHandler> = new Map();
   private logger: MsaLogger; // Use the MsaLogger type from msa-core
 
+  private readonly offMessage?: () => void;
+
   constructor(transportPlugin: ITransport, logger: MsaLogger) {
     this.transport = transportPlugin;
     this.logger = logger;
 
     // The transport plugin should already be configured and started by the core Service.
     // The onMessage handler of the transport plugin is the entry point for MCPServer.
-    this.transport.onMessage(this.handleRawMessage.bind(this));
+    this.offMessage = this.transport.onMessage(this.handleRawMessage.bind(this));
     this.logger.info('MCPServer initialized. Listening for messages on the provided transport.');
+  }
+
+  /**
+   * Cleanup method to properly dispose of resources and event listeners
+   */
+  public close(): void {
+    if (this.offMessage) {
+      this.offMessage();
+      this.logger.info('MCPServer: Removed message listener from transport.');
+    }
+    this.requestHandlers.clear();
+    this.logger.info('MCPServer: Cleared all request handlers.');
   }
 
   private async handleRawMessage(rawMessage: any, senderId?: string): Promise<void> {
@@ -67,10 +81,10 @@ export class MCPServer {
         
         // Send the response. If senderId is available and transport supports it, use it.
         // Otherwise, assume transport.send handles broadcasting or appropriate routing.
-        if (senderId && typeof (this.transport as any).sendTo === 'function') {
-            // This is a hypothetical sendTo method, actual ITransport might differ
+        if (senderId && isTargetedTransport(this.transport)) {
+            // Use the type-safe sendTo method
             this.logger.debug({ response, senderId }, 'MCPServer: Sending response to specific sender.');
-            await (this.transport as any).sendTo(senderId, JSON.stringify(response));
+            await this.transport.sendTo(senderId, JSON.stringify(response));
         } else {
             this.logger.debug({ response }, 'MCPServer: Sending/broadcasting response via transport.');
             await this.transport.send(JSON.stringify(response));
@@ -108,4 +122,9 @@ export class MCPServer {
       this.logger.warn(`MCPServer: No action handler found to unregister for: ${action}`);
     }
   }
+}
+
+// Type guard function to check if the transport has the sendTo capability
+function isTargetedTransport(transport: ITransport): transport is ITransport & { sendTo(id: string, msg: string): Promise<void> } {
+  return typeof (transport as any).sendTo === 'function';
 }

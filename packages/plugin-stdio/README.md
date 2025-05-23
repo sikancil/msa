@@ -1,14 +1,16 @@
 # MSA StdIO Plugin (@arifwidianto/msa-plugin-stdio)
 
-This plugin provides a Standard Input/Output (StdIO) transport and command-line interface (CLI) capability for the MSA (Microservice Architecture) framework. It uses `yargs` for command-line argument parsing and `inquirer` for interactive prompts.
-
-This plugin allows the MSA application to:
-*   Define and handle CLI commands with arguments and options.
-*   Output messages to the console (`stdout`/`stderr`).
-*   Receive input from `stdin`, either as commands or through interactive prompts.
-*   Optionally run in an interactive mode, continuously listening for input.
+This plugin adds command-line interface (CLI) capabilities and standard I/O handling to the MSA framework. It combines powerful command parsing with interactive prompts, making it ideal for building CLI applications or adding command-line control to MSA services.
 
 ## Features
+
+* Command-line argument parsing with Yargs
+* Interactive prompts and questions with Inquirer
+* Command registration with argument validation
+* Interactive shell mode with command history
+* Standard output/error stream management
+* Full console logging capabilities
+* Support for both one-off commands and interactive sessions
 
 *   Parses command-line arguments using `yargs`.
 *   Supports interactive prompts using `inquirer`.
@@ -19,44 +21,103 @@ This plugin allows the MSA application to:
 
 ## Installation
 
-This plugin is typically used as part of an MSA framework monorepo. Ensure it's listed as a dependency in your service or application package. Dependencies (`yargs`, `inquirer`, and their types) should be managed by the monorepo's package manager.
+```bash
+npm install @arifwidianto/msa-plugin-stdio @arifwidianto/msa-core
+```
+
+## Quick Start
+
+```typescript
+import { Service, Logger } from '@arifwidianto/msa-core';
+import { StdioPlugin } from '@arifwidianto/msa-plugin-stdio';
+import { ArgumentsCamelCase } from 'yargs';
+
+async function main() {
+  const service = new Service();
+  const stdioPlugin = new StdioPlugin();
+  
+  service.registerPlugin(stdioPlugin);
+  
+  await service.initializeService({
+    'msa-plugin-stdio': {
+      interactive: true,
+      promptPrefix: "msa> "
+    }
+  });
+  
+  // Define commands before starting the service
+  interface GreetOptions {
+    name: string;
+    enthusiastic?: boolean;
+  }
+  
+  stdioPlugin.addCommandHandler<GreetOptions>(
+    'greet <name>', 
+    'Greet a person with a friendly message',
+    {
+      name: {
+        describe: 'The name of the person to greet',
+        type: 'string',
+        demandOption: true
+      },
+      enthusiastic: {
+        describe: 'Add extra enthusiasm',
+        type: 'boolean',
+        alias: 'e',
+        default: false
+      }
+    },
+    (argv: ArgumentsCamelCase<GreetOptions>) => {
+      let greeting = `Hello, ${argv.name}!`;
+      if (argv.enthusiastic) {
+        greeting += '!!!';
+      }
+      stdioPlugin.send(greeting);
+    }
+  );
+  
+  // Add another command
+  stdioPlugin.addCommandHandler(
+    'date',
+    'Show the current date and time',
+    {},
+    () => {
+      stdioPlugin.send(`Current date: ${new Date().toLocaleString()}`);
+    }
+  );
+  
+  // Register a handler for all messages
+  stdioPlugin.onMessage((message) => {
+    Logger.debug(`StdIO received: ${JSON.stringify(message)}`);
+  });
+  
+  await service.startService();
+  Logger.info('CLI service started. Type "help" for available commands.');
+}
+
+main().catch(console.error);
+```
 
 ## Configuration
 
-The `StdioPlugin` can be configured during the service initialization phase.
-
-### `StdioPluginConfig`
+The StdIO Plugin can be configured with the following options:
 
 ```typescript
-import { PluginConfig } from '@arifwidianto/msa-core';
-
-export interface StdioPluginConfig extends PluginConfig {
-  interactive?: boolean; // If true, might start in an interactive loop by default if no command is given.
-  promptPrefix?: string; // Prefix for inquirer prompts in interactive mode (e.g., "> ").
+interface StdioPluginConfig {
+  interactive?: boolean; // If true, start in interactive mode when no command is provided
+  promptPrefix?: string; // Prefix for the interactive prompt
 }
 ```
 
 ### Example Configuration
 
 ```typescript
-// In your main service setup
-import { Service } from '@arifwidianto/msa-core';
-import { StdioPlugin, StdioPluginConfig } from '@arifwidianto/msa-plugin-stdio';
-
-const service = new Service();
-const stdioPlugin = new StdioPlugin();
-
-const pluginConfigs = {
+{
   'msa-plugin-stdio': {
-    interactive: false, // Only run commands specified on CLI, don't drop into interactive mode
-    promptPrefix: "app-cli> "
-  } as StdioPluginConfig
-};
-
-service.registerPlugin(stdioPlugin);
-await service.initializeService(pluginConfigs);
-// start() will parse argv and execute commands or start interactive mode.
-await service.startService(); 
+    interactive: true,        // Enable interactive mode
+    promptPrefix: "myapp> "   // Custom prompt
+  }
+}
 ```
 
 ## Basic Usage
@@ -168,11 +229,270 @@ If `config.interactive` is true and no command is provided via `process.argv`, o
 // Type 'exit' or 'quit' to stop interactive mode.
 ```
 
-## ITransport Implementation Notes
+## API Reference
 
-*   `listen()`: For StdIO, this prepares the plugin. The actual "listening" (processing `argv` or starting interactive input) happens in `start()`.
-*   `send(message)`: Outputs the message to `stdout`.
-*   `onMessage(handler)`: Registers a handler for parsed commands or lines from interactive input.
-*   `close()`: Stops interactive input if active.
+### addCommandHandler(command, description, builder, handler)
 
-This plugin provides a flexible way to build CLI applications or add CLI controls to your MSA services.
+Register a command with the CLI:
+
+```typescript
+interface UserOptions {
+  id: string;
+  role?: string;
+}
+
+stdioPlugin.addCommandHandler<UserOptions>(
+  'user <id>',
+  'Get or manage user information',
+  {
+    id: {
+      describe: 'User ID',
+      type: 'string',
+      demandOption: true
+    },
+    role: {
+      describe: 'User role',
+      type: 'string',
+      choices: ['admin', 'user', 'guest']
+    }
+  },
+  (argv) => {
+    console.log(`User ID: ${argv.id}`);
+    if (argv.role) {
+      console.log(`Role: ${argv.role}`);
+    }
+  }
+);
+```
+
+### send(message)
+
+Output a message to the console:
+
+```typescript
+// Send a simple string
+stdioPlugin.send("Operation completed successfully");
+
+// Send a structured object (will be JSON.stringified)
+stdioPlugin.send({
+  status: "success",
+  data: {
+    id: "12345",
+    name: "Example"
+  }
+});
+```
+
+### prompt(questions)
+
+Ask interactive questions:
+
+```typescript
+async function askUserDetails() {
+  const answers = await stdioPlugin.prompt([
+    {
+      type: 'input',
+      name: 'name',
+      message: 'What is your name?'
+    },
+    {
+      type: 'list',
+      name: 'theme',
+      message: 'Choose a theme:',
+      choices: ['light', 'dark', 'system']
+    },
+    {
+      type: 'confirm',
+      name: 'saveSettings',
+      message: 'Save these settings?',
+      default: true
+    }
+  ]);
+  
+  console.log('User details:', answers);
+  return answers;
+}
+```
+
+### startInteractiveInput()
+
+Start interactive mode to continuously read user input:
+
+```typescript
+// Start interactive mode programmatically
+stdioPlugin.startInteractiveInput();
+```
+
+### onMessage(handler)
+
+Register a handler for all messages:
+
+```typescript
+stdioPlugin.onMessage((message) => {
+  if (typeof message === 'string') {
+    // Raw input line in interactive mode
+    console.log(`Processing input: ${message}`);
+  } else if (message.type === 'command') {
+    // Command executed via parsed arguments
+    console.log(`Command executed: ${message.command}`);
+    console.log('Arguments:', message.arguments);
+  }
+});
+```
+
+## Command Line Usage
+
+Once your application is built with the StdIO plugin, users can interact with it from the command line:
+
+```bash
+# Execute a command directly
+node your-app.js greet "John" --enthusiastic
+
+# Start in interactive mode
+node your-app.js
+
+# In interactive mode, you can type commands:
+myapp> greet Jane -e
+myapp> date
+myapp> help
+myapp> exit
+```
+
+## Advanced Usage
+
+### Sub-commands
+
+Create a command hierarchy with sub-commands:
+
+```typescript
+// Main command: database
+stdioPlugin.addCommandHandler(
+  'database',
+  'Database management commands',
+  {},
+  () => {
+    stdioPlugin.send('Use a sub-command: migrate, backup, restore');
+  }
+);
+
+// Sub-command: database migrate
+stdioPlugin.addCommandHandler(
+  'database migrate',
+  'Run database migrations',
+  {
+    env: {
+      describe: 'Environment',
+      type: 'string',
+      choices: ['dev', 'test', 'prod'],
+      default: 'dev'
+    }
+  },
+  (argv) => {
+    stdioPlugin.send(`Running migrations on ${argv.env} environment...`);
+    // Migration logic
+  }
+);
+
+// Another sub-command: database backup
+stdioPlugin.addCommandHandler(
+  'database backup',
+  'Backup the database',
+  {
+    output: {
+      describe: 'Output file',
+      type: 'string',
+      default: 'backup.sql'
+    }
+  },
+  (argv) => {
+    stdioPlugin.send(`Backing up database to ${argv.output}...`);
+    // Backup logic
+  }
+);
+```
+
+### Interactive Multi-Step Workflows
+
+Create interactive wizards for complex operations:
+
+```typescript
+async function deploymentWizard() {
+  const projectInfo = await stdioPlugin.prompt([
+    {
+      type: 'input',
+      name: 'name',
+      message: 'Project name:'
+    },
+    {
+      type: 'list',
+      name: 'environment',
+      message: 'Deployment environment:',
+      choices: ['development', 'staging', 'production']
+    }
+  ]);
+  
+  stdioPlugin.send(`Deploying ${projectInfo.name} to ${projectInfo.environment}...`);
+  
+  // Ask for confirmation if production
+  if (projectInfo.environment === 'production') {
+    const confirmation = await stdioPlugin.prompt([
+      {
+        type: 'confirm',
+        name: 'proceed',
+        message: 'Production deployment requires approval. Continue?',
+        default: false
+      }
+    ]);
+    
+    if (!confirmation.proceed) {
+      stdioPlugin.send('Deployment cancelled.');
+      return;
+    }
+  }
+  
+  // Additional configuration
+  const deployConfig = await stdioPlugin.prompt([
+    {
+      type: 'checkbox',
+      name: 'services',
+      message: 'Select services to deploy:',
+      choices: ['api', 'workers', 'frontend', 'database']
+    },
+    {
+      type: 'input',
+      name: 'version',
+      message: 'Version tag:',
+      default: 'latest'
+    }
+  ]);
+  
+  stdioPlugin.send(`Deploying ${deployConfig.services.join(', ')} services with version ${deployConfig.version}`);
+  // Deployment logic
+}
+
+// Register as command
+stdioPlugin.addCommandHandler(
+  'deploy',
+  'Start deployment wizard',
+  {},
+  async () => {
+    await deploymentWizard();
+  }
+);
+```
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Build the package
+npm run build
+
+# Run tests
+npm run test
+
+# Development mode with watch
+npm run dev
+```

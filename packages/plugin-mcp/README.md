@@ -1,14 +1,16 @@
-# MSA MCP Plugin (@arifwidianto/msa-plugin-mcp)
+# MSA Model Context Protocol Plugin (@arifwidianto/msa-plugin-mcp)
 
-This plugin provides client and server implementations for the Model Context Protocol (MCP) within the MSA (Microservice Architecture) framework. It allows MSA services to connect to an MCP server (as a client) or act as an MCP server itself, facilitating standardized message exchange for interacting with models or other context-aware services. MCP communication typically occurs over WebSockets.
+This plugin implements the Model Context Protocol (MCP) for the MSA framework, enabling AI model communication and context management between clients and servers. The MCP plugin allows services to function as either MCP clients or servers, facilitating standardized communication between systems that utilize AI models.
 
 ## Features
 
-*   **MCPClient**: A WebSocket client to connect to an MCP server.
-    *   Manages connection lifecycle (connect, close).
-    *   Sends MCP-formatted requests and handles responses.
-    *   Supports pending request tracking and timeouts.
-    *   Handles server-initiated messages via a configurable handler.
+* Dual-mode operation: Client or Server implementation
+* WebSocket-based communication with reliable connection management
+* Standardized message format for model inputs and outputs
+* Context tracking and management across interactions
+* Timeout and error handling for robust operation
+* Seamless integration with MSA plugin architecture
+* Compatible with LLM services via the Langchain plugin
     *   Includes auto-reconnection logic with configurable attempts and intervals.
 *   **MCPServer**: An MCP server component.
     *   Integrates with an existing `ITransport` plugin (e.g., `msa-plugin-websocket`) to listen for incoming MCP messages.
@@ -21,16 +23,113 @@ This plugin provides client and server implementations for the Model Context Pro
 
 ## Installation
 
-This plugin is typically used as part of an MSA framework monorepo. Ensure it's listed as a dependency in your service or application package. The necessary dependencies (`ws`, `@arifwidianto/msa-core`) should be automatically managed.
-
 ```bash
-# If managing dependencies manually:
-npm install ws @arifwidianto/msa-plugin-mcp @arifwidianto/msa-core
-# or
-yarn add ws @arifwidianto/msa-plugin-mcp @arifwidianto/msa-core
+npm install @arifwidianto/msa-plugin-mcp @arifwidianto/msa-core
+```
+
+## Quick Start
+
+### MCP Server
+
+```typescript
+import { Service } from '@arifwidianto/msa-core';
+import { MCPPlugin } from '@arifwidianto/msa-plugin-mcp';
+import { LangchainPlugin } from '@arifwidianto/msa-plugin-langchain';
+
+async function main() {
+  const service = new Service();
+  
+  // Register needed plugins
+  const mcpPlugin = new MCPPlugin();
+  const langchainPlugin = new LangchainPlugin();
+  
+  service.registerPlugin(mcpPlugin);
+  service.registerPlugin(langchainPlugin);
+  
+  // Initialize plugins with configuration
+  await service.initializeService({
+    'msa-plugin-mcp': {
+      mode: 'server',
+      port: 3030
+    },
+    'msa-plugin-langchain': {
+      provider: 'openai',
+      auth: {
+        apiKey: 'your-api-key'
+      }
+    }
+  });
+  
+  // Connect MCP to the language model
+  mcpPlugin.setModelProvider(langchainPlugin);
+  
+  // Start the service
+  await service.startService();
+  console.log('MCP Server started on port 3030');
+}
+
+main().catch(console.error);
+```
+
+### MCP Client
+
+```typescript
+import { Service } from '@arifwidianto/msa-core';
+import { MCPPlugin } from '@arifwidianto/msa-plugin-mcp';
+
+async function main() {
+  const service = new Service();
+  
+  const mcpPlugin = new MCPPlugin();
+  service.registerPlugin(mcpPlugin);
+  
+  await service.initializeService({
+    'msa-plugin-mcp': {
+      mode: 'client',
+      serverUrl: 'ws://localhost:3030'
+    }
+  });
+  
+  await service.startService();
+  
+  // Get the MCP client
+  const client = mcpPlugin.getClient();
+  
+  // Send a request to the MCP server
+  const response = await client.sendRequest({
+    type: 'generate',
+    inputs: {
+      prompt: 'Explain quantum computing in simple terms'
+    }
+  });
+  
+  console.log('Response:', response);
+}
+
+main().catch(console.error);
 ```
 
 ## Configuration
+
+The MCP Plugin can be configured with the following options:
+
+```typescript
+interface MCPPluginConfig {
+  mode: 'client' | 'server';
+  
+  // Server-specific options
+  port?: number;
+  host?: string;
+  
+  // Client-specific options
+  serverUrl?: string;
+  
+  // Common options
+  requestTimeoutMs?: number; // Default: 30000 (30 seconds)
+  reconnectIntervalMs?: number; // Default: 5000 (5 seconds)
+  maxReconnectAttempts?: number; // Default: 10
+}
+```
 
 The `MCPPlugin` is configured during the service initialization phase. It supports separate configurations for client and server modes.
 
@@ -255,3 +354,111 @@ The `MCPServer` receives raw messages from the specified transport plugin (e.g.,
 The `MCPServer` relies on an `ITransport` plugin (like `msa-plugin-websocket`) for actual network communication. The `MCPPlugin` must be configured with the name of this transport plugin, and the core `Service` is responsible for providing the instance of this transport to the `MCPPlugin` during initialization. The lifecycle (start, stop) of the transport is managed by its own plugin and the core `Service`.
 
 This plugin provides a comprehensive solution for both client-side and server-side MCP communication within an MSA application. The specific `action` strings and `payload` structures will depend on the MCP server's implementation and the defined protocol.
+
+## API Reference
+
+### MCPPlugin
+
+The main plugin class that implements the IPlugin interface:
+
+```typescript
+class MCPPlugin implements IPlugin {
+  // Get the underlying client or server instance
+  getClient(): MCPClient | null;
+  getServer(): MCPServer | null;
+
+  // For server mode: set the model provider
+  setModelProvider(provider: IModelProvider): void;
+
+  // For client mode: convenience methods
+  sendRequest(request: MCPRequest): Promise<MCPResponse>;
+  onServerMessage(handler: (message: any) => void): void;
+}
+```
+
+### MCPClient
+
+Client implementation for connecting to MCP servers:
+
+```typescript
+class MCPClient {
+  connect(): Promise<void>;
+  disconnect(): Promise<void>;
+  isConnected(): boolean;
+  
+  sendRequest(request: MCPRequest): Promise<MCPResponse>;
+  onServerMessage(handler: (message: any) => void): void;
+}
+```
+
+### MCPServer
+
+Server implementation for handling MCP requests:
+
+```typescript
+class MCPServer {
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  isRunning(): boolean;
+  
+  setModelProvider(provider: IModelProvider): void;
+  broadcast(message: any): void;
+}
+```
+
+## MCP Message Types
+
+The plugin uses standardized message formats for MCP communication:
+
+```typescript
+interface MCPRequest {
+  type: string;            // e.g., 'generate', 'embeddings', etc.
+  messageId?: string;      // Auto-generated if not provided
+  contextId?: string;      // For tracking conversation context
+  inputs: {                // Input data for the model
+    [key: string]: any;    // Could include prompt, messages, etc.
+  };
+  options?: {              // Optional parameters
+    temperature?: number;
+    maxTokens?: number;
+    [key: string]: any;
+  };
+}
+
+interface MCPResponse {
+  messageId: string;       // Corresponds to request messageId
+  contextId?: string;      // Same as request if provided
+  outputs: {               // Output data from the model
+    [key: string]: any;    // Could include generated text, etc.
+  };
+  status: 'success' | 'error';
+  error?: {                // Present only if status is 'error'
+    code: string;
+    message: string;
+  };
+}
+```
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Build the package
+npm run build
+
+# Run tests
+npm run test
+
+# Development mode with watch
+npm run dev
+```
+
+## Integration with Other Plugins
+
+The MCP plugin works especially well with:
+
+- `@arifwidianto/msa-plugin-langchain` - For model providers
+- `@arifwidianto/msa-plugin-websocket` - For additional WebSocket capabilities
+- `@arifwidianto/msa-plugin-http` - For exposing REST APIs alongside MCP

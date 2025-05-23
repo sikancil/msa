@@ -12,6 +12,16 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "build": "lerna run build --stream",
+    "clean": "lerna run clean --stream",
+    "dev": "lerna run dev --stream --parallel",
+    "lint": "lerna run lint --stream --parallel",
+    "prepare": "lerna run build",
+    "docs": "typedoc --options typedoc.json",
+    "release": "lerna publish",
+    "bootstrap": "lerna bootstrap"
   }
 }

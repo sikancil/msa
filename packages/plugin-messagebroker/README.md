@@ -1,14 +1,23 @@
 # MSA Message Broker Plugin (@arifwidianto/msa-plugin-messagebroker)
 
-This plugin provides message broker capabilities for the MSA (Microservice Architecture) framework, supporting both RabbitMQ and Redis Pub/Sub. It allows services to publish messages to and subscribe to messages from a message queue or pub/sub channels.
+This plugin provides distributed messaging capabilities for the MSA framework, enabling reliable communication between microservices through industry-standard message brokers. It currently supports RabbitMQ and Redis Pub/Sub with a unified API.
 
 ## Features
 
-*   **Multiple Broker Support**:
-    *   **RabbitMQ Integration**: Connects to a RabbitMQ server, publishes messages, and subscribes to queues using `amqplib`.
-    *   **Redis Pub/Sub Integration**: Connects to a Redis server and uses its Pub/Sub mechanism using `redis` (v4).
-*   **Internal Service Logic**:
-    *   `RabbitMQService`: Encapsulates `amqplib` logic for RabbitMQ.
+* **Multi-Broker Support**:
+  * RabbitMQ for robust, enterprise-grade message queuing
+  * Redis Pub/Sub for lightweight, high-performance messaging
+  * Unified API regardless of the underlying broker
+  
+* **Flexible Messaging Patterns**:
+  * Publish-subscribe for broadcast communication
+  * Work queues for distributed task processing
+  * Request-reply for synchronous operations
+  
+* **Reliability Features**:
+  * Connection management with automatic reconnection
+  * Message acknowledgments for guaranteed delivery
+  * Error handling and retry mechanisms
     *   `RedisPubSubService`: Encapsulates `redis` client logic for Pub/Sub.
     *   Both services handle connection management, publishing, subscribing with multiple handlers, and graceful closing.
 *   **`MessageBrokerPlugin`**: Implements `IPlugin` and `ITransport` from `@arifwidianto/msa-core`.
@@ -18,141 +27,159 @@ This plugin provides message broker capabilities for the MSA (Microservice Archi
 
 ## Installation
 
-This plugin is typically used as part of an MSA framework monorepo. Ensure it's listed as a dependency. Dependencies (`amqplib`, `redis`, `@arifwidianto/msa-core`) and dev dependencies (`@types/amqplib`) should be managed by the monorepo's package manager.
-
 ```bash
-# If managing dependencies manually:
-npm install amqplib redis @arifwidianto/msa-plugin-messagebroker @arifwidianto/msa-core
-npm install -D @types/amqplib # @types/redis not usually needed for redis v4+
-# or
-yarn add amqplib redis @arifwidianto/msa-plugin-messagebroker @arifwidianto/msa-core
-yarn add -D @types/amqplib
+npm install @arifwidianto/msa-plugin-messagebroker @arifwidianto/msa-core
+```
+
+For RabbitMQ support:
+```bash
+npm install amqplib @types/amqplib
+```
+
+For Redis support:
+```bash
+npm install redis
+```
+
+## Quick Start
+
+### RabbitMQ Example
+
+```typescript
+import { Service, Logger } from '@arifwidianto/msa-core';
+import { MessageBrokerPlugin } from '@arifwidianto/msa-plugin-messagebroker';
+
+async function main() {
+  const service = new Service();
+  const brokerPlugin = new MessageBrokerPlugin();
+  
+  service.registerPlugin(brokerPlugin);
+  
+  await service.initializeService({
+    'msa-plugin-messagebroker': {
+      broker: 'rabbitmq',
+      connectionString: 'amqp://localhost',
+      queueName: 'tasks'
+    }
+  });
+  
+  await service.startService();
+  
+  // Set up message handler (consumer)
+  brokerPlugin.subscribe((message) => {
+    Logger.info(`Received message: ${JSON.stringify(message)}`);
+    return true; // Acknowledge the message
+  });
+  
+  // Publish a message
+  await brokerPlugin.publish({
+    type: 'task',
+    data: {
+      id: '123',
+      action: 'process',
+      payload: { value: 42 }
+    }
+  });
+}
+
+main().catch(console.error);
+```
+
+### Redis Example
+
+```typescript
+import { Service, Logger } from '@arifwidianto/msa-core';
+import { MessageBrokerPlugin } from '@arifwidianto/msa-plugin-messagebroker';
+
+async function main() {
+  const service = new Service();
+  const brokerPlugin = new MessageBrokerPlugin();
+  
+  service.registerPlugin(brokerPlugin);
+  
+  await service.initializeService({
+    'msa-plugin-messagebroker': {
+      broker: 'redis',
+      connectionString: 'redis://localhost:6379',
+      channels: ['notifications', 'events']
+    }
+  });
+  
+  await service.startService();
+  
+  // Set up message handler
+  brokerPlugin.subscribe((message) => {
+    Logger.info(`Received message: ${JSON.stringify(message)}`);
+    return true;
+  });
+  
+  // Publish a message to all subscribers
+  await brokerPlugin.publish({
+    channel: 'notifications',
+    type: 'alert',
+    data: {
+      severity: 'high',
+      message: 'System maintenance scheduled'
+    }
+  });
+}
+
+main().catch(console.error);
 ```
 
 ## Configuration
 
-The `MessageBrokerPlugin` is configured during service initialization. You must specify `clientType` as either `'rabbitmq'` or `'redis'` and provide the corresponding configuration object.
-
-### `MessageBrokerPluginConfig`
+The MessageBroker Plugin can be configured with the following options:
 
 ```typescript
-import { PluginConfig } from '@arifwidianto/msa-core';
-
-// Configuration for RabbitMQ
-export interface RabbitMQConfig {
-  url: string; // e.g., 'amqp://guest:guest@localhost:5672/'
-  defaultExchange?: { 
-    name: string; 
-    type?: 'direct' | 'topic' | 'headers' | 'fanout';
-    options?: object; // amqplib assertExchange options (e.g., { durable: true })
-  };
-  defaultQueue?: { 
-    name: string; 
-    options?: object; // amqplib assertQueue options (e.g., { durable: true })
-  };
-}
-
-// Configuration for Redis Pub/Sub
-export interface RedisConfig {
-  url?: string; // e.g., 'redis://localhost:6379'
-  host?: string; // Alternative to URL if not using full URL format
-  port?: number;
-  password?: string;
-  defaultChannelPrefix?: string; // Optional: e.g., 'msa-app:' prepended to channel names
-}
-
-// Main plugin configuration
-export interface MessageBrokerPluginConfig extends PluginConfig {
-  clientType: 'rabbitmq' | 'redis'; // Specify which broker to use
-  rabbitmq?: RabbitMQConfig;     // Provide if clientType is 'rabbitmq'
-  redis?: RedisConfig;         // Provide if clientType is 'redis'
+interface MessageBrokerPluginConfig {
+  broker: 'rabbitmq' | 'redis'; // Which message broker to use
+  connectionString: string;     // Connection URI for the broker
+  
+  // RabbitMQ specific options
+  queueName?: string;           // Default queue to consume from and publish to
+  exchangeName?: string;        // Exchange name (if using exchanges)
+  exchangeType?: string;        // Exchange type (direct, fanout, topic, headers)
+  routingKey?: string;          // Routing key for messages
+  
+  // Redis specific options
+  channels?: string[];          // Redis channels to subscribe to
+  
+  // Common options
+  reconnectInterval?: number;   // Milliseconds between reconnection attempts
+  maxReconnectAttempts?: number; // Maximum number of reconnection attempts
 }
 ```
 
-### Environment Variables
-
-It's highly recommended to provide connection URLs and other sensitive details (like passwords) via environment variables, using `@arifwidianto/msa-core`'s `Config` class.
-
-Examples:
-*   `RABBITMQ_URL="amqp://user:pass@your-rabbitmq-server:5672"`
-*   `REDIS_URL="redis://:yourpassword@your-redis-server:6379"`
-
-### Example Service Setup
+### RabbitMQ Configuration Example
 
 ```typescript
-// In your main service setup
-import { Service, Config, Logger, Message, MessageHandler } from '@arifwidianto/msa-core';
-import { MessageBrokerPlugin, MessageBrokerPluginConfig } from '@arifwidianto/msa-plugin-messagebroker';
-
-const service = new Service(); // Assume Service has getLogger method
-const mbPlugin = new MessageBrokerPlugin();
-
-// --- RabbitMQ Configuration Example ---
-const rabbitMqPluginConfig: MessageBrokerPluginConfig = {
-  clientType: 'rabbitmq',
-  rabbitmq: {
-    url: Config.get('RABBITMQ_URL', 'amqp://localhost'),
-    defaultExchange: { name: 'app_default_exchange', type: 'topic' },
-    defaultQueue: { name: 'app_default_queue' }
-  }
-};
-
-// --- Redis Configuration Example ---
-const redisPluginConfig: MessageBrokerPluginConfig = {
-  clientType: 'redis',
-  redis: {
-    url: Config.get('REDIS_URL', 'redis://localhost:6379'),
-    defaultChannelPrefix: 'myapp:'
-  }
-};
-
-// Choose one configuration to use:
-const chosenConfig = Config.get('BROKER_TYPE') === 'redis' ? redisPluginConfig : rabbitMqPluginConfig;
-
-// Ensure URL is found for the chosen client type
-let brokerUrlValid = false;
-if (chosenConfig.clientType === 'rabbitmq' && chosenConfig.rabbitmq?.url) {
-    brokerUrlValid = true;
-} else if (chosenConfig.clientType === 'redis' && (chosenConfig.redis?.url || (chosenConfig.redis?.host && chosenConfig.redis?.port))) {
-    brokerUrlValid = true;
-}
-
-if (!brokerUrlValid) {
-  Logger.error("Message Broker URL not found or client type invalid. Plugin will not work.");
-  // Handle missing URL appropriately
-} else {
-  service.registerPlugin(mbPlugin);
-}
-
-// Initialize and start the service
-async function main() {
-  await mbPlugin.initialize(chosenConfig, service); // Pass service for scoped logger
-  await service.startService(); // This calls mbPlugin.start() which connects the chosen broker service
-
-  // Now MessageBrokerPlugin ITransport methods can be used.
-  
-  if (chosenConfig.clientType === 'rabbitmq') {
-    // Example: Subscribe to a RabbitMQ queue
-    const subId = await mbPlugin.listen('my_rabbit_queue', (msgContent: Message) => {
-      Logger.info(`RabbitMQ message on my_rabbit_queue: ${msgContent}`);
-    });
-    Logger.info(`Subscribed to 'my_rabbit_queue'. Sub ID: ${subId}`);
-    
-    // Example: Publish to RabbitMQ
-    await mbPlugin.send({ data: "Hello RabbitMQ!" }, 'my.routing.key');
-  } else if (chosenConfig.clientType === 'redis') {
-    // Example: Subscribe to a Redis channel
-    const subId = await mbPlugin.listen('my_redis_channel', (msgContent: Message) => {
-      Logger.info(`Redis message on my_redis_channel: ${msgContent}`);
-    });
-    Logger.info(`Subscribed to 'my_redis_channel'. Sub ID: ${subId}`);
-
-    // Example: Publish to Redis channel
-    await mbPlugin.send({ data: "Hello Redis!" }, 'my_redis_channel'); // For Redis, second arg is channel
+{
+  'msa-plugin-messagebroker': {
+    broker: 'rabbitmq',
+    connectionString: 'amqp://user:password@rabbitmq-server:5672',
+    queueName: 'my-service-queue',
+    exchangeName: 'my-exchange',
+    exchangeType: 'topic',
+    routingKey: 'events.#',
+    reconnectInterval: 5000,
+    maxReconnectAttempts: 10
   }
 }
+```
 
-main().catch(error => Logger.error({ msg: "Service failed to start or run", error }));
+### Redis Configuration Example
+
+```typescript
+{
+  'msa-plugin-messagebroker': {
+    broker: 'redis',
+    connectionString: 'redis://redis-server:6379',
+    channels: ['events', 'notifications', 'tasks'],
+    reconnectInterval: 3000,
+    maxReconnectAttempts: 5
+  }
+}
 ```
 
 ## `ITransport` Implementation Details
@@ -188,3 +215,180 @@ The `MessageBrokerPlugin` implements the `ITransport` interface from `@arifwidia
 Select the `clientType` and configure accordingly based on your application's needs.
 
 This plugin provides a versatile foundation for integrating message-driven patterns into your MSA services. Remember to handle message (de)serialization appropriately for complex objects.
+
+## API Reference
+
+### publish(message)
+
+Publish a message to the configured broker:
+
+```typescript
+// Publish a message
+await brokerPlugin.publish({
+  type: 'user.created',
+  data: {
+    userId: '12345',
+    email: 'user@example.com'
+  }
+});
+
+// Publish to a specific channel/queue/routing key
+await brokerPlugin.publish({
+  routingKey: 'users.created',  // For RabbitMQ
+  channel: 'user-events',       // For Redis
+  data: {
+    userId: '12345',
+    email: 'user@example.com'
+  }
+});
+```
+
+### subscribe(handler)
+
+Subscribe to messages from the configured broker:
+
+```typescript
+// Subscribe to messages
+brokerPlugin.subscribe((message) => {
+  console.log('Received message:', message);
+  
+  try {
+    // Process the message
+    processMessage(message);
+    
+    // Acknowledge successful processing
+    return true;
+  } catch (error) {
+    console.error('Failed to process message:', error);
+    
+    // Negative acknowledge (will be requeued in RabbitMQ)
+    return false;
+  }
+});
+```
+
+### getClient()
+
+Get access to the underlying broker client for advanced operations:
+
+```typescript
+// Get the underlying client
+const client = brokerPlugin.getClient();
+
+if (brokerPlugin.getBrokerType() === 'rabbitmq') {
+  // RabbitMQ specific operations
+  const channel = await client.createChannel();
+  await channel.assertExchange('logs', 'topic', { durable: true });
+  // ...
+} else if (brokerPlugin.getBrokerType() === 'redis') {
+  // Redis specific operations
+  await client.set('key', 'value');
+  // ...
+}
+```
+
+## Advanced Usage
+
+### Request-Reply Pattern
+
+```typescript
+// Service A - Sends request and waits for reply
+async function sendRequest() {
+  const correlationId = generateUniqueId();
+  
+  // Create a reply queue
+  const replyQueue = await brokerPlugin.createQueue(`reply-${correlationId}`);
+  
+  // Subscribe to the reply queue
+  brokerPlugin.subscribeToQueue(replyQueue, (response) => {
+    if (response.correlationId === correlationId) {
+      console.log('Got response:', response.data);
+    }
+  });
+  
+  // Send the request
+  await brokerPlugin.publish({
+    routingKey: 'requests',
+    data: { action: 'get-user', userId: '12345' },
+    properties: {
+      correlationId: correlationId,
+      replyTo: replyQueue
+    }
+  });
+}
+
+// Service B - Processes requests and sends replies
+brokerPlugin.subscribeToQueue('requests', async (request) => {
+  // Process the request
+  const result = await processRequest(request.data);
+  
+  // Send the response back
+  if (request.properties.replyTo) {
+    await brokerPlugin.publish({
+      routingKey: request.properties.replyTo,
+      data: result,
+      properties: {
+        correlationId: request.properties.correlationId
+      }
+    });
+  }
+  
+  return true; // Acknowledge
+});
+```
+
+### Topic-Based Routing (RabbitMQ)
+
+```typescript
+// Publisher
+async function publishEvents() {
+  // Publish different types of events with different routing keys
+  await brokerPlugin.publish({
+    exchangeName: 'events',
+    routingKey: 'user.created',
+    data: { userId: '12345', action: 'created' }
+  });
+  
+  await brokerPlugin.publish({
+    exchangeName: 'events',
+    routingKey: 'order.completed',
+    data: { orderId: 'ORD-789', status: 'completed' }
+  });
+}
+
+// Subscriber for user events
+brokerPlugin.subscribeWithRoutingKey('events', 'user.*', (message) => {
+  console.log('User event:', message);
+  return true;
+});
+
+// Subscriber for all events
+brokerPlugin.subscribeWithRoutingKey('events', '#', (message) => {
+  console.log('All events:', message);
+  return true;
+});
+```
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Build the package
+npm run build
+
+# Run tests
+npm run test
+
+# Development mode with watch
+npm run dev
+```
+
+## Integration with Other MSA Plugins
+
+The message broker plugin works well with:
+
+- `@arifwidianto/msa-plugin-http` - For REST API endpoints that trigger messages
+- `@arifwidianto/msa-plugin-websocket` - To push broker messages to connected clients
+- `@arifwidianto/msa-plugin-langchain` - For processing messages with LLM capabilities

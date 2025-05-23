@@ -44,6 +44,8 @@ export class MCPClient {
         Logger.info(`MCPClient: Successfully connected to ${this.serverUrl}.`);
         this.reconnectAttempts = 0; // Reset on successful connection
         this.connectionResolve?.();
+        this.connectionResolve = null;
+        this.connectionReject = null;
         this.connectionPromise = null; // Clear promise for next connect attempt
       });
 
@@ -51,8 +53,12 @@ export class MCPClient {
 
       this.ws.on('error', (err) => {
         Logger.error(`MCPClient: WebSocket error: ${err.message}`);
-        this.connectionReject?.(err);
-        this.connectionPromise = null;
+        if (this.connectionPromise) {
+          this.connectionReject?.(err);
+          this.connectionResolve = null;
+          this.connectionReject = null;
+          this.connectionPromise = null;
+        }
         // Error event is often followed by 'close'. Reconnection logic is in 'close'.
       });
 
@@ -66,21 +72,21 @@ export class MCPClient {
           handler.reject(new Error(`MCPClient: Connection closed. Request ${requestId} failed.`));
         });
         this.pendingRequests.clear();
-        
+
         if (this.autoReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
           this.reconnectAttempts++;
           Logger.info(`MCPClient: Attempting to reconnect in ${this.reconnectInterval / 1000}s... (Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
           setTimeout(() => {
             this.connect().catch(reconnectError => {
-                Logger.error(`MCPClient: Reconnect attempt ${this.reconnectAttempts} failed: ${reconnectError.message}`);
+              Logger.error(`MCPClient: Reconnect attempt ${this.reconnectAttempts} failed: ${reconnectError.message}`);
             });
           }, this.reconnectInterval);
-        } else if (this.autoReconnect) {
-            Logger.error(`MCPClient: Max reconnect attempts (${this.maxReconnectAttempts}) reached. Will not reconnect further.`);
-        }
-        // If connection was never established, the initial promise should be rejected
-        if (this.connectionReject && !this.connectionPromise) { // Check if connectionPromise is null to ensure it's not the active one
-            this.connectionReject(new Error(`MCPClient: Connection closed. Code: ${code}, Reason: ${reasonStr}`));
+        } else if (this.autoReconnect && this.connectionPromise) {
+          Logger.error(`MCPClient: Max reconnect attempts (${this.maxReconnectAttempts}) reached. Will not reconnect further.`);
+          this.connectionReject?.(new Error(`MCPClient: Connection closed. Code: ${code}, Reason: ${reasonStr}`));
+          this.connectionResolve = null;
+          this.connectionReject = null;
+          this.connectionPromise = null;
         }
       });
     });
@@ -118,7 +124,7 @@ export class MCPClient {
       // Consider requiring explicit connect() call before sendRequest.
       await this.connect(); // Wait for connection
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) { // Check again after connect attempt
-          throw new Error('MCPClient: Connection failed. Cannot send request.');
+        throw new Error('MCPClient: Connection failed. Cannot send request.');
       }
     }
 
@@ -134,26 +140,36 @@ export class MCPClient {
     };
 
     return new Promise((resolve, reject) => {
-      this.pendingRequests.set(requestId, { resolve, reject });
-      Logger.debug(`MCPClient: Sending request: ${JSON.stringify(request)}`);
-      this.ws!.send(JSON.stringify(request), (err) => {
-        if (err) {
-          Logger.error(`MCPClient: Error sending request ${requestId}: ${err.message}`);
-          this.pendingRequests.delete(requestId);
-          reject(err);
-        }
-      });
-      // Optional: Implement a timeout for requests
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         if (this.pendingRequests.has(requestId)) {
           Logger.warn(`MCPClient: Request ${requestId} (action: ${action}) timed out.`);
           this.pendingRequests.get(requestId)?.reject(new Error(`Request ${requestId} timed out`));
           this.pendingRequests.delete(requestId);
         }
       }, 30000); // 30s timeout, make configurable
+
+      // Create wrapper functions that clear the timeout
+      const finish = (cb: (v?: any) => void) => (arg: any) => {
+        clearTimeout(timer);
+        cb(arg);
+      };
+
+      this.pendingRequests.set(requestId, {
+        resolve: finish(resolve),
+        reject: finish(reject)
+      });
+
+      Logger.debug(`MCPClient: Sending request: ${JSON.stringify(request)}`);
+      this.ws!.send(JSON.stringify(request), (err) => {
+        if (err) {
+          Logger.error(`MCPClient: Error sending request ${requestId}: ${err.message}`);
+          this.pendingRequests.delete(requestId);
+          finish(reject)(err);
+        }
+      });
     });
   }
-  
+
   public setOnMessageHandler(handler: (message: MCPMessage) => void): void {
     this.onMessageHandler = handler;
   }
