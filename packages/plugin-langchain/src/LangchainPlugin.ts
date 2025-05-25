@@ -1,21 +1,21 @@
-import { IPlugin, Logger, ITransport, Message, MessageHandler } from '@arifwidianto/msa-core';
+import { IPlugin, Logger, ITransport, Message, MessageHandler, IPluginDependency } from '@arifwidianto/msa-core';
 import { LangchainPluginConfig } from './LangchainPluginConfig';
 import { ChatOpenAI } from '@langchain/openai';
-import { LLMChain } from 'langchain/chains';
-import { PromptTemplate, ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate } from '@langchain/core/prompts';
+// import { LLMChain } from 'langchain/chains'; // Unused
+import { PromptTemplate /*, ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate */ } from '@langchain/core/prompts'; // Unused
 import { BaseMessage, HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
 
 export class LangchainPlugin implements IPlugin, ITransport {
   public readonly name = 'msa-plugin-langchain';
   public readonly version = '0.1.0';
-  public readonly dependencies: string[] = [];
+  public readonly dependencies: IPluginDependency[] = [];
 
   private config: LangchainPluginConfig = { provider: 'openai', auth: { apiKey: '' } }; // Default to empty, must be configured
   private llm: ChatOpenAI | null = null;
 
-  public async initialize(config: LangchainPluginConfig, dependencies: Map<string, IPlugin>): Promise<void> {
+  public async initialize(config: LangchainPluginConfig, _dependencies: Map<string, IPlugin>): Promise<void> {
     this.config = { ...this.config, ...config };
-    // Logger.debug(`Plugin ${this.name} received dependencies: ${Array.from(dependencies.keys())}`);
+    // Logger.debug(`Plugin ${this.name} received dependencies: ${Array.from(_dependencies.keys())}`);
 
     if (!this.config.auth.apiKey) {
       Logger.error(`${this.name}: API key is required but not provided.`);
@@ -24,6 +24,7 @@ export class LangchainPlugin implements IPlugin, ITransport {
 
     try {
       // Base configuration for the LLM
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const llmConfig: any = {
         apiKey: this.config.auth.apiKey,
         modelName: this.config.defaultModelName || 'gpt-3.5-turbo', // Default model
@@ -101,7 +102,7 @@ export class LangchainPlugin implements IPlugin, ITransport {
       // Using LCEL (Langchain Expression Language)
       const chain = prompt.pipe(this.llm);
       Logger.debug(`${this.name}: Invoking LLM chain with inputs: ${JSON.stringify(inputs)}`);
-      const result = await chain.invoke(inputs);
+      const result: any = await chain.invoke(inputs); // eslint-disable-line @typescript-eslint/no-explicit-any -- The type of 'result' is dynamic due to chain.invoke
 
       // Guard against undefined or null result
       if (result === undefined || result === null) {
@@ -246,10 +247,10 @@ export class LangchainPlugin implements IPlugin, ITransport {
       } else {
         // Create a structured prompt from object properties
         const structuredPrompt = Object.entries(message)
-          .filter(([_, value]) => value !== undefined && value !== null)
-          .map(([key, value]) => {
+          .filter(([_key, value]) => value !== undefined && value !== null)
+          .map(([_key, value]) => {
             const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
-            return `${key}: ${valueStr}`;
+            return `${_key}: ${valueStr}`;
           })
           .join('\n');
           

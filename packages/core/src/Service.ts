@@ -1,6 +1,5 @@
-import { IPlugin, PluginConfig, IPluginDependency } from './interfaces/IPlugin';
+import { IPlugin, PluginConfig } from './interfaces/IPlugin';
 import { Logger } from './Logger';
-import * as semver from 'semver';
 import { EventEmitter } from 'events';
 
 export class Service {
@@ -52,23 +51,17 @@ export class Service {
       return;
     }
 
-    // New Dependency Validation Logic
-    for (const dep of plugin.dependencies) {
-      const registeredDepPlugin = this.plugins.find(p => p.name === dep.name);
+    // Dependency Validation Logic (simple name check)
+    for (const depName of plugin.dependencies) {
+      const registeredDepPlugin = this.plugins.find(p => p.name === depName);
 
       if (!registeredDepPlugin) {
-        const errorMsg = `Plugin "${plugin.name}" requires dependency "${dep.name}" (version "${dep.versionRange}"), which is not registered. Registration aborted.`;
+        const errorMsg = `Plugin "${plugin.name}" requires dependency "${depName}", which is not registered. Registration aborted.`;
         Logger.error(errorMsg);
         this.eventEmitter.emit('plugin:registrationFailed', { pluginName: plugin.name, error: errorMsg });
         return; // Registration fails
       }
-
-      if (!semver.satisfies(registeredDepPlugin.version, dep.versionRange)) {
-        const errorMsg = `Plugin "${plugin.name}" requires dependency "${dep.name}" version "${dep.versionRange}", but found version "${registeredDepPlugin.version}". Registration aborted.`;
-        Logger.error(errorMsg);
-        this.eventEmitter.emit('plugin:registrationFailed', { pluginName: plugin.name, error: errorMsg });
-        return; // Registration fails
-      }
+      // Version compatibility can be handled by plugin developers or a more sophisticated manager
     }
 
     this.plugins.push(plugin);
@@ -97,9 +90,9 @@ export class Service {
     const pluginToUnregister = this.plugins[pluginIndex];
     Logger.info(`Unregistering plugin "${pluginName}"...`);
 
-    // Dependency Check - Updated for IPluginDependency[]
+    // Dependency Check - Updated for string[]
     const dependentPlugins = this.plugins.filter(p => 
-      p.dependencies.some(dep => dep.name === pluginName) && p.name !== pluginName
+      p.dependencies.includes(pluginName) && p.name !== pluginName
     );
     if (dependentPlugins.length > 0) {
       const dependentPluginNames = dependentPlugins.map(p => p.name);
@@ -113,22 +106,22 @@ export class Service {
       Logger.info(`Stopping plugin "${pluginToUnregister.name}"...`);
       await pluginToUnregister.stop();
       Logger.info(`Plugin "${pluginToUnregister.name}" stopped.`);
+      this.eventEmitter.emit('plugin:stopped', { pluginName: pluginToUnregister.name }); // Added event
     } catch (error) {
       const errorMsg = `Error stopping plugin "${pluginToUnregister.name}": ${error instanceof Error ? error.message : String(error)}`;
       Logger.error(errorMsg);
-      // We might still emit unregistrationFailed here or let it proceed to cleanup.
-      // For now, let's assume failure to stop is a notable error, but cleanup will still be attempted.
-      // This doesn't stop the unregistration process entirely.
+      this.eventEmitter.emit('plugin:stopFailed', { pluginName: pluginToUnregister.name, error: error instanceof Error ? error : new Error(errorMsg) }); // Added event
     }
 
     try {
       Logger.info(`Cleaning up plugin "${pluginToUnregister.name}"...`);
       await pluginToUnregister.cleanup();
       Logger.info(`Plugin "${pluginToUnregister.name}" cleaned up.`);
+      this.eventEmitter.emit('plugin:cleanedUp', { pluginName: pluginToUnregister.name }); // Added event
     } catch (error) {
       const errorMsg = `Error cleaning up plugin "${pluginToUnregister.name}": ${error instanceof Error ? error.message : String(error)}`;
       Logger.error(errorMsg);
-      // Similar to stop, this is an error during the process.
+      this.eventEmitter.emit('plugin:cleanupFailed', { pluginName: pluginToUnregister.name, error: error instanceof Error ? error : new Error(errorMsg) }); // Added event
     }
 
     this.plugins.splice(pluginIndex, 1);
@@ -153,13 +146,13 @@ export class Service {
         // Create and populate dependencies map for the current plugin
         const dependenciesMap = new Map<string, IPlugin>();
         if (plugin.dependencies && plugin.dependencies.length > 0) {
-          for (const dep of plugin.dependencies) {
-            const foundPluginInstance = this.plugins.find(p => p.name === dep.name);
+          for (const depName of plugin.dependencies) {
+            const foundPluginInstance = this.plugins.find(p => p.name === depName);
             if (foundPluginInstance) {
-              dependenciesMap.set(dep.name, foundPluginInstance);
+              dependenciesMap.set(depName, foundPluginInstance);
             } else {
               // This case should ideally not be reached if registerPlugin ensures dependencies exist
-              Logger.warn(`During initialization of "${plugin.name}", dependency plugin "${dep.name}" was not found in registered plugins.`);
+              Logger.warn(`During initialization of "${plugin.name}", dependency plugin "${depName}" was not found in registered plugins.`);
             }
           }
         }

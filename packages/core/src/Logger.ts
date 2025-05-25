@@ -3,26 +3,28 @@ import { Config } from './Config';
 
 const logLevel = Config.get<string>('LOG_LEVEL', 'info');
 
-const logger = pino({
+const pinoOptions: pino.LoggerOptions = {
   level: logLevel,
-  transport: {
-    target: 'pino-pretty', // Make logs more readable during development
-    options: {
-      colorize: true,
-      ignore: 'pid,hostname', // Optional: hide pid and hostname
-      translateTime: 'SYS:standard', // Use system's timezone for timestamps
-    },
-  },
-});
+};
 
-// Check if pino-pretty is available, if not, use default transport
-try {
-  require.resolve('pino-pretty');
-} catch (e) {
-  console.warn("pino-pretty not found, using default JSON logger. Run 'npm install -D pino-pretty' in packages/core for prettier logs.");
-  logger.setBindings({}); // Reset to default transport
+if (process.env.NODE_ENV !== 'production') {
+  try {
+    require.resolve('pino-pretty'); // Check if available
+    pinoOptions.transport = { 
+      target: 'pino-pretty', 
+      options: { 
+        colorize: true, 
+        ignore: 'pid,hostname', 
+        translateTime: 'SYS:standard' 
+      } 
+    };
+  } catch (err) {
+    // pino-pretty not installed, or NODE_ENV is production (though already checked)
+    console.warn("pino-pretty not found, using default JSON logger. For dev, run 'npm install -D pino-pretty' in packages/core.");
+  }
 }
 
+const logger = pino(pinoOptions);
 
 export const Logger = {
   info: (message: string, ...args: any[]) => logger.info(message, ...args),

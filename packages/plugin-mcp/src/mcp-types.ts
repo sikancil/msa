@@ -6,13 +6,14 @@ export interface MCPMessageBase {
 
 export interface MCPContext {
   sessionId?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any; // For arbitrary context data
 }
 
 export interface MCPRequest extends MCPMessageBase {
   type: 'request';
   action: string; // e.g., "generate_text", "get_capabilities"
-  payload: any;
+  payload: unknown;
   context?: MCPContext;
 }
 
@@ -20,7 +21,7 @@ export interface MCPResponse extends MCPMessageBase {
   type: 'response';
   requestId: string; // Corresponds to MCPRequest.messageId
   status: 'success' | 'error';
-  payload?: any;
+  payload?: unknown;
   error?: { code: string; message: string; };
   context?: MCPContext; // Updated context
 }

@@ -1,4 +1,4 @@
-import { IPlugin, PluginConfig, Logger, ITransport, Message, MessageHandler } from '@arifwidianto/msa-core';
+import { IPlugin, PluginConfig, Logger, ITransport, Message, MessageHandler } from '@arifwidianto/msa-core'; // IPluginDependency removed
 import yargs, { Argv, CommandModule, ArgumentsCamelCase } from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import inquirer, { QuestionCollection, Answers } from 'inquirer';
@@ -8,18 +8,18 @@ import readline from 'readline';
 export class StdioPlugin implements IPlugin, ITransport {
   public readonly name = 'msa-plugin-stdio';
   public readonly version = '0.1.0';
-  public readonly dependencies: string[] = [];
+  public readonly dependencies: string[] = []; // Changed to string[]
 
   private config: StdioPluginConfig = {};
   private messageHandler: MessageHandler | null = null;
   private yargsInstance: Argv | null = null;
-  private commandHandlers: Map<string, (args: ArgumentsCamelCase<any>) => void> = new Map();
+  private commandHandlers: Map<string, (args: ArgumentsCamelCase<unknown>) => void> = new Map();
   private isInteractiveListening: boolean = false;
   private rl: readline.Interface | null = null;
 
-  public async initialize(config: PluginConfig, dependencies: Map<string, IPlugin>): Promise<void> {
+  public async initialize(config: PluginConfig, _dependencies: Map<string, IPlugin>): Promise<void> {
     this.config = { ...this.config, ...config } as StdioPluginConfig;
-    // Logger.debug(`Plugin ${this.name} received dependencies: ${Array.from(dependencies.keys())}`);
+    // Logger.debug(`Plugin ${this.name} received dependencies: ${Array.from(_dependencies.keys())}`);
     this.yargsInstance = yargs(hideBin(process.argv));
     this.setupDefaultYargs();
     Logger.info(`StdIO Plugin "${this.name}" initialized with config: ${JSON.stringify(this.config)}`);
@@ -49,27 +49,8 @@ export class StdioPlugin implements IPlugin, ITransport {
       throw new Error('StdIO Plugin: Not initialized. Call initialize() first.');
     }
 
-    // Register all command handlers with yargs
-    this.commandHandlers.forEach((handler, commandKey) => {
-        // Assuming commandKey is "command" or "command sub"
-        const [cmd, ...subcommands] = commandKey.split(' ');
-        const commandModule: CommandModule<{}, {}> = {
-            command: commandKey, // Full command string
-            aliases: [], // Can be configured via addCommandHandler
-            describe: `Handler for ${commandKey}`, // Can be configured
-            handler: (args) => {
-                if (this.messageHandler) {
-                    // Pass command output or args to the generic message handler
-                    this.messageHandler({ command: commandKey, args } as any);
-                }
-                handler(args); // Execute specific command handler
-            },
-            // builder: (y) => y.option(...) // Can be configured
-        };
-        // This way of adding commands is a bit simplistic for complex subcommands with yargs
-        // A more robust approach would be to allow passing full CommandModule objects
-        this.yargsInstance!.command(commandModule);
-    });
+    // Command handlers should have been registered via addCommandHandler before start is called.
+    // yargsInstance holds these command configurations.
     
     // If no command is given and interactive mode is enabled by config, or if an 'interactive' command is explicitly run.
     const argv = await this.yargsInstance.parseAsync();
@@ -97,6 +78,8 @@ export class StdioPlugin implements IPlugin, ITransport {
   }
 
   public async cleanup(): Promise<void> {
+    Logger.info(`StdIO Plugin "${this.name}" cleaning up...`);
+    await this.stop(); // Ensure interactive input is stopped
     this.yargsInstance = null;
     this.commandHandlers.clear();
     Logger.info(`StdIO Plugin "${this.name}" cleaned up.`);
@@ -105,20 +88,24 @@ export class StdioPlugin implements IPlugin, ITransport {
   // --- ITransport Implementation ---
 
   public async listen(): Promise<void> {
-    // "listen" for StdIO means being ready to process commands or interactive input.
-    // This is effectively handled by start().
-    Logger.info('StdIO Plugin: listen() called. Command processing will start via start(). Interactive mode may also start if configured.');
-    // If interactive mode is desired by default, it can be triggered here or in start().
-    if (this.config.interactive && !this.isInteractiveListening) {
-        // this.startInteractiveInput(); // Or defer to start()
-    }
+    // For StdIO, 'listen' is more conceptual. The actual processing/listening for commands
+    // or interactive input is initiated by the IPlugin.start() method.
+    Logger.info(`StdIO Plugin "${this.name}": Conceptual listen. Ready for input via start().`);
+    return Promise.resolve();
   }
 
   public async send(message: Message): Promise<void> {
     if (typeof message === 'object' && message !== null) {
-      console.log(JSON.stringify(message, null, 2)); // Pretty print objects
+      // Attempt to pretty print objects, fallback to standard console.log for other types
+      try {
+        console.log(JSON.stringify(message, null, 2));
+      } catch (e) {
+        console.log(message); // Fallback if stringify fails (e.g., circular refs)
+      }
+    } else if (message === undefined) {
+      console.log('undefined'); // Explicitly handle undefined
     } else {
-      console.log(message);
+      console.log(message.toString()); // Ensure it's a string for other primitives
     }
     return Promise.resolve();
   }
@@ -141,7 +128,7 @@ export class StdioPlugin implements IPlugin, ITransport {
    * @param builder Yargs builder function or object for options (e.g., { name: { describe: 'Your name', type: 'string', demandOption: true } })
    * @param handler The function to execute when the command is matched.
    */
-  public addCommandHandler<T = {}>(
+  public addCommandHandler<T = object>(
     command: string,
     description: string,
     builder: Record<string, yargs.Options> | ((y: Argv) => Argv<T>),
@@ -153,22 +140,26 @@ export class StdioPlugin implements IPlugin, ITransport {
       return;
     }
 
-    const commandModule: CommandModule<{}, T> = {
+    const commandModule: CommandModule<object, T> = {
       command,
       describe: description,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       builder: builder as any, // Type assertion needed due to complex yargs types
       handler: (args) => {
         // If a global message handler is registered, notify it
         if (this.messageHandler) {
+      const messagePayload: Message = { type: 'command', source: this.name, command, arguments: args };
           try {
-            // We construct a "Message" like object. This can be standardized.
-            const messagePayload: Message = { type: 'command', command, arguments: args };
             this.messageHandler(messagePayload);
           } catch (e) {
-            Logger.error(`Error in global message handler for command ${command}: ${e}`);
+        Logger.error(`StdIO Plugin: Error in onMessage handler for command ${command}: ${e instanceof Error ? e.message : String(e)}`);
           }
         }
-        // Execute the specific handler for this command
+    // Execute the specific handler for this command (if different from the generic one)
+    // If the intent is that addCommandHandler's handler IS the primary logic, 
+    // and onMessage is just for generic passthrough, this is fine.
+    // If onMessage's handler is supposed to replace/augment this, logic needs adjustment.
+    // For now, assume command's handler executes, and onMessage is also notified.
         handler(args as ArgumentsCamelCase<T>);
       },
     };
@@ -184,7 +175,16 @@ export class StdioPlugin implements IPlugin, ITransport {
    * @returns A promise that resolves with the user's answers.
    */
   public async prompt(questions: QuestionCollection): Promise<Answers> {
-    return inquirer.prompt(questions);
+    const answers = await inquirer.prompt(questions);
+    if (this.messageHandler) {
+      const messagePayload: Message = { type: 'prompt', source: this.name, questions, answers };
+      try {
+        this.messageHandler(messagePayload);
+      } catch (e) {
+        Logger.error(`StdIO Plugin: Error in onMessage handler for prompt answers: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    return answers;
   }
 
   /**
@@ -214,11 +214,11 @@ export class StdioPlugin implements IPlugin, ITransport {
       }
 
       if (this.messageHandler) {
+        const messagePayload: Message = { type: 'interactive_input', source: this.name, line: trimmedLine };
         try {
-          // Treat line as a message. Could also try to parse it with yargs.
-           this.messageHandler(trimmedLine as Message); // Or { type: 'interactive_input', content: trimmedLine }
+           this.messageHandler(messagePayload);
         } catch (error) {
-          Logger.error(`StdIO Plugin: Error in message handler for interactive input: ${error instanceof Error ? error.message : String(error)}`);
+          Logger.error(`StdIO Plugin: Error in onMessage handler for interactive input: ${error instanceof Error ? error.message : String(error)}`);
         }
       } else {
         Logger.info(`Received input: ${trimmedLine}. No global message handler registered for interactive lines.`);

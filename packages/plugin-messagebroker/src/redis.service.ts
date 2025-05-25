@@ -35,8 +35,8 @@ export class RedisPubSubService {
       await this.publisher.connect();
       await this.subscriber.connect();
       this.logger.info('Connected to Redis for Pub/Sub');
-    } catch (error: any) {
-      this.logger.error(`Failed to connect to Redis: ${error.message}`);
+    } catch (error: unknown) {
+      this.logger.error(`Failed to connect to Redis: ${(error as Error).message}`);
       throw error;
     }
   }
@@ -55,8 +55,8 @@ export class RedisPubSubService {
     try {
         await this.publisher.publish(fullChannel, messageString);
         this.logger.debug(`Message published to Redis channel ${fullChannel}`);
-    } catch (error: any) {
-        this.logger.error(`Error publishing message to Redis channel ${fullChannel}: ${error.message}`);
+    } catch (error: unknown) {
+        this.logger.error(`Error publishing message to Redis channel ${fullChannel}: ${(error as Error).message}`);
         throw error;
     }
   }
@@ -98,16 +98,16 @@ export class RedisPubSubService {
             handlers.forEach(handler => {
                 try {
                     handler(parsedMessage);
-                } catch (handlerError: any) {
-                    this.logger.error(`Error in Redis message handler for channel ${subscribedChannel}: ${handlerError.message}`);
+                } catch (handlerError: unknown) {
+                    this.logger.error(`Error in Redis message handler for channel ${subscribedChannel}: ${(handlerError as Error).message}`);
                 }
             });
           }
         });
         this.activeRedisSubscriptions.set(fullChannel, true);
         this.logger.info(`Successfully subscribed to Redis channel: ${fullChannel}`);
-      } catch (error: any) {
-          this.logger.error(`Error subscribing to Redis channel ${fullChannel}: ${error.message}`);
+      } catch (error: unknown) {
+          this.logger.error(`Error subscribing to Redis channel ${fullChannel}: ${(error as Error).message}`);
           // If subscription failed, remove the handler that was optimistically added.
           const handlers = this.messageHandlers.get(fullChannel);
           if (handlers) {
@@ -153,8 +153,8 @@ export class RedisPubSubService {
         try {
             await this.subscriber.unsubscribe(fullChannel);
             this.logger.info(`Successfully unsubscribed from Redis channel: ${fullChannel}`);
-        } catch (error: any) {
-            this.logger.error(`Error unsubscribing from Redis channel ${fullChannel}: ${error.message}`);
+        } catch (error: unknown) {
+            this.logger.error(`Error unsubscribing from Redis channel ${fullChannel}: ${(error as Error).message}`);
             // Even if unsubscribe fails, we mark it as inactive locally, as we have no more handlers.
         }
       } else {

@@ -1,4 +1,4 @@
-import { IPlugin, Logger, ITransport } from '@arifwidianto/msa-core';
+import { IPlugin, Logger, ITransport, IPluginDependency } from '@arifwidianto/msa-core';
 import { MCPClient } from './MCPClient';
 import { MCPPluginConfig } from './MCPPluginConfig';
 import { MCPServer, MCPRequestHandler } from './MCPServer'; // Import MCPServer
@@ -14,7 +14,7 @@ import { MCPServer, MCPRequestHandler } from './MCPServer'; // Import MCPServer
 export class MCPPlugin implements IPlugin {
   public readonly name = 'msa-plugin-mcp';
   public readonly version = '0.1.0';
-  public readonly dependencies: string[] = [];
+  public readonly dependencies: IPluginDependency[] = [];
 
   private client: MCPClient | null = null;
   private serverInstance: MCPServer | null = null;
@@ -61,8 +61,9 @@ export class MCPPlugin implements IPlugin {
 
       if (transportPluginName) {
         const transportDep = dependencies.get(transportPluginName);
-        if (transportDep && typeof (transportDep as any).listen === 'function') { // Check if it's an ITransport
-          transportForServer = transportDep as ITransport;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (transportDep && typeof (transportDep as any).listen === 'function' && typeof (transportDep as any).send === 'function' && typeof (transportDep as any).onMessage === 'function' && typeof (transportDep as any).close === 'function') { // Check if it's an ITransport
+          transportForServer = transportDep as unknown as ITransport;
         } else {
           Logger.warn(`${this.name}: Specified transport plugin "${transportPluginName}" not found or not a valid ITransport in dependencies.`);
         }

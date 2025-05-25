@@ -160,7 +160,7 @@ export class MCPClient {
     }
   }
 
-  public async sendRequest(action: string, payload: any, context?: MCPContext): Promise<MCPResponse> {
+  public async sendRequest(action: string, payload: unknown, context?: MCPContext): Promise<MCPResponse> {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       Logger.warn(`MCPClient: Not connected. Attempting to connect before sending request for action: ${action}`);
       // Attempt to connect if not connected. This might be too implicit for some use cases.
@@ -192,7 +192,7 @@ export class MCPClient {
       }, 30000); // 30s timeout, make configurable
 
       // Create wrapper functions that clear the timeout
-      const finish = (cb: (v?: any) => void) => (arg: any) => {
+      const finish = (cb: (v?: any) => void) => (arg: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
         clearTimeout(timer);
         cb(arg);
       };

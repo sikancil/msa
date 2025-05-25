@@ -1,4 +1,4 @@
-import { IPlugin, ITransport, Message, MessageHandler, Service } from '@arifwidianto/msa-core';
+import { IPlugin, ITransport, Message, MessageHandler, IPluginDependency } from '@arifwidianto/msa-core'; // Service removed
 import { MessageBrokerPluginConfig } from './MessageBrokerPluginConfig';
 import { RabbitMQService } from './rabbitmq.service';
 import { RedisPubSubService } from './redis.service';
@@ -7,7 +7,7 @@ import { Logger } from '@arifwidianto/msa-core';
 export class MessageBrokerPlugin implements IPlugin, ITransport {
   public readonly name = 'msa-plugin-messagebroker';
   public readonly version = '0.1.0';
-  public readonly dependencies: string[] = [];
+  public readonly dependencies: IPluginDependency[] = [];
   
   private config!: MessageBrokerPluginConfig;
   private logger!: typeof Logger;
@@ -26,9 +26,9 @@ export class MessageBrokerPlugin implements IPlugin, ITransport {
   private nextSubscriptionId = 0;
 
 
-  async initialize(config: MessageBrokerPluginConfig, dependencies: Map<string, IPlugin>): Promise<void> {
+  async initialize(config: MessageBrokerPluginConfig, _dependencies: Map<string, IPlugin>): Promise<void> {
     this.config = config;
-    // Logger.debug(`Plugin ${this.name} received dependencies: ${Array.from(dependencies.keys())}`);
+    // Logger.debug(`Plugin ${this.name} received dependencies: ${Array.from(_dependencies.keys())}`);
     
     // Always use the global Logger since Service doesn't have getLogger method
     this.logger = Logger;

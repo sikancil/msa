@@ -1,14 +1,15 @@
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type PluginConfig = Record<string, any>;
 
-export interface IPluginDependency {
-  name: string;          // Name of the dependent plugin
-  versionRange: string;  // Semantic version range (e.g., "^1.0.0", "~2.1.x", ">=1.0.0 <2.0.0")
-}
+// export interface IPluginDependency {
+//   name: string;          // Name of the dependent plugin
+//   versionRange: string;  // Semantic version range (e.g., "^1.0.0", "~2.1.x", ">=1.0.0 <2.0.0")
+// }
 
 export interface IPlugin {
   name: string;
   version: string;
-  dependencies: IPluginDependency[]; // New: Supports versioned dependencies
+  dependencies: string[]; // Names of other plugins this plugin depends on
   initialize(config: PluginConfig, dependencies: Map<string, IPlugin>): Promise<void>;
   start(): Promise<void>;
   stop(): Promise<void>;
