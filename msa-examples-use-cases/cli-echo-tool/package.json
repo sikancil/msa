@@ -8,7 +8,8 @@
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "lint": "eslint src/**/*.ts",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "check": "npm run build && ts-node src/check.ts"
   },
   "dependencies": {
     "@arifwidianto/msa-core": "file:../../packages/core",
