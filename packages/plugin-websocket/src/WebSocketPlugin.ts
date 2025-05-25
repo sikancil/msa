@@ -12,8 +12,9 @@ export class WebSocketPlugin implements IPlugin, ITransport {
   private messageHandler: MessageHandler | null = null;
   private clients: Set<WebSocket> = new Set();
 
-  public async initialize(config: PluginConfig): Promise<void> {
+  public async initialize(config: PluginConfig, dependencies: Map<string, IPlugin>): Promise<void> {
     this.config = { ...this.config, ...config } as WebSocketPluginConfig;
+    // Logger.debug(`Plugin ${this.name} received dependencies: ${Array.from(dependencies.keys())}`);
     if (!this.config.port) {
       throw new Error('WebSocket Plugin: Port must be configured.');
     }

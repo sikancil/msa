@@ -45,11 +45,16 @@ await service.startService();
 The foundational interface that all plugins must implement:
 
 ```typescript
+interface IPluginDependency {
+  name: string;          // Name of the dependent plugin
+  versionRange: string;  // Semantic version range (e.g., "^1.0.0")
+}
+
 interface IPlugin {
   name: string;
   version: string;
-  dependencies: string[]; // Names of other plugins this plugin depends on
-  initialize(config: PluginConfig): Promise<void>;
+  dependencies: IPluginDependency[]; // Describes versioned dependencies on other plugins
+  initialize(config: PluginConfig, dependencies: Map<string, IPlugin>): Promise<void>; // Receives config and a map of its resolved dependency instances
   start(): Promise<void>;
   stop(): Promise<void>;
   cleanup(): Promise<void>;
@@ -89,7 +94,9 @@ The `Service` class is the main entry point for creating MSA applications:
 ```typescript
 class Service {
   registerPlugin(plugin: IPlugin): void;
+  unregisterPlugin(pluginName: string): Promise<void>;
   getPlugin(name: string): IPlugin | undefined;
+  getEventEmitter(): EventEmitter; // From Node.js 'events' module
   async initializeService(configs: Record<string, PluginConfig>): Promise<void>;
   async startService(): Promise<void>;
   async stopService(): Promise<void>;
@@ -112,17 +119,47 @@ Logger.error('Error message');
 
 ### Config
 
-Helps manage configuration with environment variables and defaults:
+A static utility class to retrieve configuration values, primarily from environment variables, with support for defaults and type conversion.
 
 ```typescript
-const config = new Config('my-service', {
-  port: 3000,
-  debug: false
+// Retrieve a configuration value for 'PORT', defaulting to 3000 if not set by env var APP_PORT
+const port = Config.get('APP_PORT', 3000); 
+
+// Retrieve a log level, defaulting to 'info'
+const logLevel = Config.get('LOG_LEVEL', 'info');
+
+// Example: process.env.APP_PORT = "8080" would make port be 8080.
+// Example: process.env.LOG_LEVEL = "debug" would make logLevel be "debug".
+```
+The `Config.get` method automatically handles conversion of environment variables to `boolean` (e.g., "true", "false") and `number` (e.g., "123", "123.45") types based on the type of the default value provided. If no default is provided, it returns a string or `undefined`.
+
+## Monitoring Hooks
+
+The `Service` instance provides access to an `EventEmitter` (from Node.js 'events' module) that emits events at various stages of the service and plugin lifecycles. This allows for monitoring, custom logging, or extending behavior based on these events.
+
+```typescript
+import { Service } from '@arifwidianto/msa-core';
+const service = new Service();
+const emitter = service.getEventEmitter();
+
+emitter.on('service:initialized', () => {
+  console.log('Service has finished initializing!');
 });
 
-// Override with environment variables
-// MY_SERVICE_PORT=4000
-const port = config.get('port'); // Returns 4000
+emitter.on('plugin:registered', (eventPayload) => {
+  console.log(`Plugin registered: ${eventPayload.pluginName} version ${eventPayload.version}`);
+});
+
+emitter.on('plugin:initializationFailed', (eventPayload) => {
+  console.error(`Failed to initialize plugin ${eventPayload.pluginName}:`, eventPayload.error);
+});
+
+// Refer to Service.ts or future documentation for a full list of events.
+// Key events include:
+// - Service lifecycle: service:initializing, service:initialized, service:starting, service:started, service:stopping, service:stopped, service:cleaningUp, service:cleanedUp, service:signalReceived
+// - Plugin lifecycle: plugin:registering, plugin:registered, plugin:unregistering, plugin:unregistered, 
+//   plugin:initializing, plugin:initialized, plugin:starting, plugin:started, plugin:stopping, plugin:stopped, plugin:cleaningUp, plugin:cleanedUp
+// - Plugin errors: plugin:registrationFailed, plugin:unregistrationFailed, plugin:initializationFailed, plugin:startFailed, plugin:stopFailed, plugin:cleanupFailed
 ```
 
 ## Development

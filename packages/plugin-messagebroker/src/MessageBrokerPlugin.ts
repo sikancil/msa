@@ -26,8 +26,9 @@ export class MessageBrokerPlugin implements IPlugin, ITransport {
   private nextSubscriptionId = 0;
 
 
-  async initialize(config: MessageBrokerPluginConfig, service?: Service): Promise<void> {
+  async initialize(config: MessageBrokerPluginConfig, dependencies: Map<string, IPlugin>): Promise<void> {
     this.config = config;
+    // Logger.debug(`Plugin ${this.name} received dependencies: ${Array.from(dependencies.keys())}`);
     
     // Always use the global Logger since Service doesn't have getLogger method
     this.logger = Logger;

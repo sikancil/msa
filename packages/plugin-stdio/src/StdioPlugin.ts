@@ -17,8 +17,9 @@ export class StdioPlugin implements IPlugin, ITransport {
   private isInteractiveListening: boolean = false;
   private rl: readline.Interface | null = null;
 
-  public async initialize(config: PluginConfig): Promise<void> {
+  public async initialize(config: PluginConfig, dependencies: Map<string, IPlugin>): Promise<void> {
     this.config = { ...this.config, ...config } as StdioPluginConfig;
+    // Logger.debug(`Plugin ${this.name} received dependencies: ${Array.from(dependencies.keys())}`);
     this.yargsInstance = yargs(hideBin(process.argv));
     this.setupDefaultYargs();
     Logger.info(`StdIO Plugin "${this.name}" initialized with config: ${JSON.stringify(this.config)}`);

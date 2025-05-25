@@ -13,8 +13,9 @@ export class LangchainPlugin implements IPlugin, ITransport {
   private config: LangchainPluginConfig = { provider: 'openai', auth: { apiKey: '' } }; // Default to empty, must be configured
   private llm: ChatOpenAI | null = null;
 
-  public async initialize(config: LangchainPluginConfig): Promise<void> {
+  public async initialize(config: LangchainPluginConfig, dependencies: Map<string, IPlugin>): Promise<void> {
     this.config = { ...this.config, ...config };
+    // Logger.debug(`Plugin ${this.name} received dependencies: ${Array.from(dependencies.keys())}`);
 
     if (!this.config.auth.apiKey) {
       Logger.error(`${this.name}: API key is required but not provided.`);

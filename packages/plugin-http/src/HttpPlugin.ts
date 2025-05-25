@@ -13,8 +13,9 @@ export class HttpPlugin implements IPlugin, ITransport {
   private config: HttpPluginConfig = { port: 3000 }; // Default config
   private messageHandler: MessageHandler | null = null; // For ITransport
 
-  public async initialize(config: PluginConfig): Promise<void> {
+  public async initialize(config: PluginConfig, dependencies: Map<string, IPlugin>): Promise<void> {
     this.config = { ...this.config, ...config } as HttpPluginConfig;
+    // Logger.debug(`Plugin ${this.name} received dependencies: ${Array.from(dependencies.keys())}`);
     if (!this.config.port) {
       throw new Error('HTTP Plugin: Port must be configured.');
     }
