@@ -74,8 +74,8 @@ describe('Service', () => {
 
     it('should initialize all registered plugins with their configs', async () => {
       await service.initializeService(configs);
-      expect(plugin1.initialize).toHaveBeenCalledWith(configs.plugin1);
-      expect(plugin2.initialize).toHaveBeenCalledWith(configs.plugin2);
+      expect(plugin1.initialize).toHaveBeenCalledWith(configs.plugin1, expect.any(Map));
+      expect(plugin2.initialize).toHaveBeenCalledWith(configs.plugin2, expect.any(Map));
       expect(Logger.info).toHaveBeenCalledWith('Initializing service...');
       expect(Logger.info).toHaveBeenCalledWith('Initializing plugin "plugin1"...');
       expect(Logger.info).toHaveBeenCalledWith('Plugin "plugin1" initialized.');
@@ -84,7 +84,7 @@ describe('Service', () => {
 
     it('should initialize plugin with empty config if not provided', async () => {
       await service.initializeService({});
-      expect(plugin1.initialize).toHaveBeenCalledWith({});
+      expect(plugin1.initialize).toHaveBeenCalledWith({}, expect.any(Map));
     });
     
     it('should handle errors during plugin initialization', async () => {

@@ -54,7 +54,7 @@ describe('HttpPlugin', () => {
   describe('Initialization', () => {
     it('should initialize with default config if none provided', async () => {
       // Note: HttpPlugin's internal default is { port: 3000 }, not defaultConfig from test
-      await plugin.initialize({}); 
+      await plugin.initialize({}, new Map()); 
       expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('initialized with config: {"port":3000}'));
       expect(require('express')).toHaveBeenCalled();
       expect(mockExpressApp.use).toHaveBeenCalledWith(expect.any(Function)); // For express.json()
@@ -63,7 +63,7 @@ describe('HttpPlugin', () => {
 
     it('should initialize with provided config', async () => {
       const config: HttpPluginConfig = { port: 8080, host: '0.0.0.0' };
-      await plugin.initialize(config);
+      await plugin.initialize(config, new Map());
       expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining(JSON.stringify(config)));
     });
 
@@ -71,13 +71,13 @@ describe('HttpPlugin', () => {
         // This test depends on how the plugin handles a "missing" port.
         // If port can be undefined in PluginConfig and HttpPluginConfig makes it mandatory
         // then the type system should help. If it can be 0 or falsy:
-        await expect(plugin.initialize({ port: 0 } as any)).rejects.toThrow('HTTP Plugin: Port must be configured.');
+        await expect(plugin.initialize({ port: 0 } as any, new Map())).rejects.toThrow('HTTP Plugin: Port must be configured.');
     });
   });
 
   describe('Start/Stop', () => {
     beforeEach(async () => {
-      await plugin.initialize(defaultConfig);
+      await plugin.initialize(defaultConfig, new Map());
     });
 
     it('should start the HTTP server', async () => {
@@ -125,7 +125,7 @@ describe('HttpPlugin', () => {
 
   describe('Route Registration', () => {
     beforeEach(async () => {
-      await plugin.initialize(defaultConfig);
+      await plugin.initialize(defaultConfig, new Map());
     });
 
     it('should register a GET route', () => {
@@ -156,7 +156,7 @@ describe('HttpPlugin', () => {
 
   describe('ITransport methods', () => {
     beforeEach(async () => {
-      await plugin.initialize(defaultConfig);
+      await plugin.initialize(defaultConfig, new Map());
     });
 
     it('listen() should update config port and log', async () => {
@@ -194,7 +194,7 @@ describe('HttpPlugin', () => {
   
   describe('Cleanup', () => {
     it('should nullify the app instance', async () => {
-        await plugin.initialize(defaultConfig);
+        await plugin.initialize(defaultConfig, new Map());
         expect(plugin.getExpressApp()).not.toBeNull();
         await plugin.cleanup();
         expect(plugin.getExpressApp()).toBeNull();

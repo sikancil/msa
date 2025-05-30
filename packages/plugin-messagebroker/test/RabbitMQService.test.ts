@@ -12,7 +12,7 @@ const mockLoggerInstance = {
 };
 const MockLogger = mockLoggerInstance as unknown as typeof Logger;
 
-// Mock amqplib
+// Create shared mock objects that will be used across the file
 const mockChannel = {
   assertExchange: jest.fn().mockResolvedValue(undefined),
   assertQueue: jest.fn().mockResolvedValue(undefined),
@@ -24,11 +24,14 @@ const mockChannel = {
   close: jest.fn().mockResolvedValue(undefined),
   on: jest.fn(), // For 'error' and 'close' events on channel
 };
+
 const mockConnection = {
   createChannel: jest.fn().mockResolvedValue(mockChannel),
   close: jest.fn().mockResolvedValue(undefined),
   on: jest.fn(), // For 'error' and 'close' events on connection
 };
+
+// Mock amqplib - using the shared mock objects
 jest.mock('amqplib', () => ({
   connect: jest.fn().mockResolvedValue(mockConnection),
 }));

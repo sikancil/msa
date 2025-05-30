@@ -1,4 +1,4 @@
-import { MCPRequest, MCPResponse, MCPContext, MCPMessage } from './mcp-types';
+import { MCPRequest, MCPResponse, MCPContext } from './mcp-types'; // MCPMessage removed
 import { ITransport, Logger } from '@arifwidianto/msa-core'; // Added LoggerType import
 
 // Define a simpler Logger interface for MCPServer if full MsaLogger is not directly available
@@ -37,7 +37,7 @@ export class MCPServer {
     this.logger.info('MCPServer: Cleared all request handlers.');
   }
 
-  private async handleRawMessage(rawMessage: any, senderId?: string): Promise<void> {
+  private async handleRawMessage(rawMessage: unknown, senderId?: string): Promise<void> {
     // senderId might be provided by ITransport if it supports multiple clients (e.g., individual WebSockets)
     this.logger.debug('MCPServer: Received raw message from transport.', { rawMessage, senderId });
     try {
@@ -127,5 +127,6 @@ export class MCPServer {
 
 // Type guard function to check if the transport has the sendTo capability
 function isTargetedTransport(transport: ITransport): transport is ITransport & { sendTo(id: string, msg: string): Promise<void> } {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return typeof (transport as any).sendTo === 'function';
 }

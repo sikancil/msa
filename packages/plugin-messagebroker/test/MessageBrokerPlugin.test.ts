@@ -64,7 +64,7 @@ describe('MessageBrokerPlugin', () => {
 
   describe('Initialization', () => {
     it('should initialize RabbitMQService if clientType is rabbitmq', async () => {
-      await plugin.initialize(rabbitmqPluginConfig, mockServiceInstance as unknown as Service);
+      await plugin.initialize(rabbitmqPluginConfig, new Map());
       expect(mockServiceInstance.getLogger).toHaveBeenCalledWith(plugin.name);
       expect(RabbitMQService).toHaveBeenCalledWith(rabbitmqConfig, mockLoggerInstance);
       expect(plugin['rabbitmqService']).toBe(mockRabbitMQServiceInstance);
@@ -72,7 +72,7 @@ describe('MessageBrokerPlugin', () => {
     });
 
     it('should initialize RedisPubSubService if clientType is redis', async () => {
-      await plugin.initialize(redisPluginConfig, mockServiceInstance as unknown as Service);
+      await plugin.initialize(redisPluginConfig, new Map());
       expect(mockServiceInstance.getLogger).toHaveBeenCalledWith(plugin.name);
       expect(RedisPubSubService).toHaveBeenCalledWith(redisConfig, mockLoggerInstance);
       expect(plugin['redisService']).toBe(mockRedisPubSubServiceInstance);
@@ -81,14 +81,14 @@ describe('MessageBrokerPlugin', () => {
 
     it('should warn if clientType is not configured or unknown', async () => {
       const wrongConfig = { clientType: 'unknown' } as any;
-      await plugin.initialize(wrongConfig, mockServiceInstance as unknown as Service);
+      await plugin.initialize(wrongConfig, new Map());
       expect(mockLoggerInstance.warn).toHaveBeenCalledWith('Message broker clientType not configured properly or unknown.');
     });
   });
 
   describe('Lifecycle Methods (start, stop) - RabbitMQ', () => {
     beforeEach(async () => {
-      await plugin.initialize(rabbitmqPluginConfig, mockServiceInstance as unknown as Service);
+      await plugin.initialize(rabbitmqPluginConfig, new Map());
     });
 
     it('start() should call connect on RabbitMQService', async () => {
@@ -110,7 +110,7 @@ describe('MessageBrokerPlugin', () => {
       // This ensures that when RedisPubSubService is newed up by the plugin, our mock instance is used.
       (RedisPubSubService as jest.Mock).mockImplementation(() => mockRedisPubSubServiceInstance);
       
-      await plugin.initialize(redisPluginConfig, mockServiceInstance as unknown as Service);
+      await plugin.initialize(redisPluginConfig, new Map());
     });
 
     it('start() should call connect on RedisPubSubService', async () => {
@@ -131,7 +131,7 @@ describe('MessageBrokerPlugin', () => {
     let handler: jest.Mock<MessageHandler>;
 
     beforeEach(async () => {
-      await plugin.initialize(rabbitmqPluginConfig, mockServiceInstance as unknown as Service);
+      await plugin.initialize(rabbitmqPluginConfig, new Map());
       handler = jest.fn();
     });
 
@@ -169,7 +169,7 @@ describe('MessageBrokerPlugin', () => {
     beforeEach(async () => {
       // Ensure RedisPubSubService is mocked for each test in this describe block if plugin is re-initialized
       (RedisPubSubService as jest.Mock).mockImplementation(() => mockRedisPubSubServiceInstance);
-      await plugin.initialize(redisPluginConfig, mockServiceInstance as unknown as Service);
+      await plugin.initialize(redisPluginConfig, new Map());
       handler = jest.fn();
     });
 
@@ -203,7 +203,7 @@ describe('MessageBrokerPlugin', () => {
   
   describe('Cleanup', () => {
     it('should close and undefine RabbitMQService', async () => {
-        await plugin.initialize(rabbitmqPluginConfig, mockServiceInstance as unknown as Service);
+        await plugin.initialize(rabbitmqPluginConfig, new Map());
         await plugin.cleanup();
         expect(mockRabbitMQServiceInstance.close).toHaveBeenCalled();
         expect(plugin['rabbitmqService']).toBeUndefined();
@@ -211,7 +211,7 @@ describe('MessageBrokerPlugin', () => {
     
     it('should close and undefine RedisPubSubService', async () => {
         (RedisPubSubService as jest.Mock).mockImplementation(() => mockRedisPubSubServiceInstance);
-        await plugin.initialize(redisPluginConfig, mockServiceInstance as unknown as Service);
+        await plugin.initialize(redisPluginConfig, new Map());
         await plugin.cleanup();
         expect(mockRedisPubSubServiceInstance.close).toHaveBeenCalled();
         expect(plugin['redisService']).toBeUndefined();

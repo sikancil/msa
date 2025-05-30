@@ -1,8 +1,8 @@
 import { IPlugin, Logger, ITransport, Message, MessageHandler } from '@arifwidianto/msa-core';
 import { LangchainPluginConfig } from './LangchainPluginConfig';
 import { ChatOpenAI } from '@langchain/openai';
-import { LLMChain } from 'langchain/chains';
-import { PromptTemplate, ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate } from '@langchain/core/prompts';
+// import { LLMChain } from 'langchain/chains'; // Unused
+import { PromptTemplate /*, ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate */ } from '@langchain/core/prompts'; // Unused
 import { BaseMessage, HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
 
 export class LangchainPlugin implements IPlugin, ITransport {
@@ -13,8 +13,9 @@ export class LangchainPlugin implements IPlugin, ITransport {
   private config: LangchainPluginConfig = { provider: 'openai', auth: { apiKey: '' } }; // Default to empty, must be configured
   private llm: ChatOpenAI | null = null;
 
-  public async initialize(config: LangchainPluginConfig): Promise<void> {
+  public async initialize(config: LangchainPluginConfig, _dependencies: Map<string, IPlugin>): Promise<void> {
     this.config = { ...this.config, ...config };
+    // Logger.debug(`Plugin ${this.name} received dependencies: ${Array.from(_dependencies.keys())}`);
 
     if (!this.config.auth.apiKey) {
       Logger.error(`${this.name}: API key is required but not provided.`);
@@ -23,6 +24,7 @@ export class LangchainPlugin implements IPlugin, ITransport {
 
     try {
       // Base configuration for the LLM
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const llmConfig: any = {
         apiKey: this.config.auth.apiKey,
         modelName: this.config.defaultModelName || 'gpt-3.5-turbo', // Default model
@@ -100,7 +102,7 @@ export class LangchainPlugin implements IPlugin, ITransport {
       // Using LCEL (Langchain Expression Language)
       const chain = prompt.pipe(this.llm);
       Logger.debug(`${this.name}: Invoking LLM chain with inputs: ${JSON.stringify(inputs)}`);
-      const result = await chain.invoke(inputs);
+      const result: any = await chain.invoke(inputs); // eslint-disable-line @typescript-eslint/no-explicit-any -- The type of 'result' is dynamic due to chain.invoke
 
       // Guard against undefined or null result
       if (result === undefined || result === null) {
@@ -224,31 +226,31 @@ export class LangchainPlugin implements IPlugin, ITransport {
         ).join('\n');
       }
     } else if (message && typeof message === 'object') {
-      if (typeof message.content === 'string') {
+      if (typeof (message as any).content === 'string') {
         // Object with a direct content property
-        promptContent = message.content;
-      } else if (message.messages && Array.isArray(message.messages)) {
+        promptContent = (message as any).content;
+      } else if ((message as any).messages && Array.isArray((message as any).messages)) {
         // Object with a messages array (common pattern)
-        return this.send(message.messages); // Recursively process the messages array
-      } else if (message.prompt && typeof message.prompt === 'string') {
+        return this.send((message as any).messages); // Recursively process the messages array
+      } else if ((message as any).prompt && typeof (message as any).prompt === 'string') {
         // Object with a prompt property
-        promptContent = message.prompt;
-      } else if (message.query && typeof message.query === 'string') {
+        promptContent = (message as any).prompt;
+      } else if ((message as any).query && typeof (message as any).query === 'string') {
         // Object with a query property
-        promptContent = message.query;
-      } else if (message.text && typeof message.text === 'string') {
+        promptContent = (message as any).query;
+      } else if ((message as any).text && typeof (message as any).text === 'string') {
         // Object with a text property
-        promptContent = message.text;
-      } else if (message.input && typeof message.input === 'string') {
+        promptContent = (message as any).text;
+      } else if ((message as any).input && typeof (message as any).input === 'string') {
         // Object with an input property
-        promptContent = message.input;
+        promptContent = (message as any).input;
       } else {
         // Create a structured prompt from object properties
         const structuredPrompt = Object.entries(message)
-          .filter(([_, value]) => value !== undefined && value !== null)
-          .map(([key, value]) => {
+          .filter(([_key, value]) => value !== undefined && value !== null)
+          .map(([_key, value]) => {
             const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
-            return `${key}: ${valueStr}`;
+            return `${_key}: ${valueStr}`;
           })
           .join('\n');
           

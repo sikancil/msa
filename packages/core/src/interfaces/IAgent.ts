@@ -1,6 +1,6 @@
 // Placeholder types for AgentRequest, AgentResponse, ProtocolType, AgentCapability
-export type AgentRequest = any;
-export type AgentResponse = any;
+export type AgentRequest = unknown;
+export type AgentResponse = unknown;
 export type ProtocolType = string; // Or an enum
 export type AgentCapability = { name: string; version: string; }; // Example structure
 

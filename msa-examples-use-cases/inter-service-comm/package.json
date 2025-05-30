@@ -1,0 +1,25 @@
+{
+  "name": "msa-inter-service-comm-example",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Root package for inter-service communication example (user-service and post-service)",
+  "scripts": {
+    "build:user-service": "cd user-service && npm run build",
+    "build:post-service": "cd post-service && npm run build",
+    "build:all": "npm run build:user-service && npm run build:post-service",
+    "start:user-service": "cd user-service && npm start",
+    "start:post-service": "cd post-service && npm start",
+    "dev:user-service": "cd user-service && npm run dev",
+    "dev:post-service": "cd post-service && npm run dev",
+    "check": "npm run build:all && ts-node check.ts",
+    "start:all": "npm-run-all --parallel start:user-service start:post-service",
+    "dev:all": "npm-run-all --parallel dev:user-service dev:post-service"
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5",
+    "@types/node": "^20.12.12",
+    "axios": "^1.6.0" 
+  }
+}

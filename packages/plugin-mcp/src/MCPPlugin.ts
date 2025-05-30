@@ -29,9 +29,10 @@ export class MCPPlugin implements IPlugin {
 
   public async initialize(
     config: MCPPluginConfig,
-    transportForServer?: ITransport // This would be supplied by the service orchestrator
+    dependencies: Map<string, IPlugin> // This would be supplied by the service orchestrator
   ): Promise<void> {
     this.config = config;
+    // Logger.debug(`Plugin ${this.name} received dependencies: ${Array.from(dependencies.keys())}`);
     // this.logger = this.coreAccess?.getLogger(this.name) || Logger; // Example if coreAccess was real
 
     Logger.info(`${this.name}: Initializing...`);
@@ -50,17 +51,30 @@ export class MCPPlugin implements IPlugin {
     }
 
     // Initialize Server
+    // The transportForServer logic needs to be re-evaluated.
+    // For now, it's removed as it's not directly provided by the new initialize signature.
+    // It might need to be fetched from `dependencies` if a transport plugin is listed as a dependency.
     if (config.server?.enabled) {
       Logger.info(`${this.name}: Server mode enabled.`);
+      const transportPluginName = config.server.transportPluginName; // Assuming this field exists in MCPPluginConfig
+      let transportForServer: ITransport | undefined;
+
+      if (transportPluginName) {
+        const transportDep = dependencies.get(transportPluginName);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (transportDep && typeof (transportDep as any).listen === 'function' && typeof (transportDep as any).send === 'function' && typeof (transportDep as any).onMessage === 'function' && typeof (transportDep as any).close === 'function') { // Check if it's an ITransport
+          transportForServer = transportDep as unknown as ITransport;
+        } else {
+          Logger.warn(`${this.name}: Specified transport plugin "${transportPluginName}" not found or not a valid ITransport in dependencies.`);
+        }
+      }
+
       if (transportForServer) {
         this.serverInstance = new MCPServer(transportForServer, Logger); // Pass the Logger
-        Logger.info(`${this.name}: MCPServer instance created and attached to transport.`);
+        Logger.info(`${this.name}: MCPServer instance created and attached to transport "${transportPluginName}".`);
       } else {
-        const errorMsg = `${this.name}: Server mode enabled, but no transport plugin instance was provided to initialize. MCPServer will not function.`;
+        const errorMsg = `${this.name}: Server mode enabled, but required transport plugin instance ("${transportPluginName || 'N/A'}") was not found or invalid in dependencies. MCPServer will not function.`;
         Logger.error(errorMsg);
-        // Depending on strictness, could throw new Error(errorMsg);
-        // This setup assumes the orchestrating service handles providing the transport.
-        // If a transportPluginName was in config.server, the orchestrator would use that to fetch and pass it.
       }
     } else {
       Logger.info(`${this.name}: Server mode not enabled.`);

@@ -56,7 +56,7 @@ describe('LangchainPlugin', () => {
 
   describe('Initialization', () => {
     it('should initialize ChatOpenAI with provided API key and model name', async () => {
-      await plugin.initialize(defaultConfig);
+      await plugin.initialize(defaultConfig, new Map());
       expect(ChatOpenAI).toHaveBeenCalledWith({
         apiKey: defaultConfig.auth.apiKey,
         modelName: defaultConfig.defaultModelName,
@@ -71,7 +71,7 @@ describe('LangchainPlugin', () => {
         provider: 'openai',
         auth: { apiKey: 'test-api-key' }
       };
-      await plugin.initialize(configNoModel);
+      await plugin.initialize(configNoModel, new Map());
       expect(ChatOpenAI).toHaveBeenCalledWith(expect.objectContaining({
         modelName: 'gpt-3.5-turbo', // Internal default
       }));
@@ -82,7 +82,7 @@ describe('LangchainPlugin', () => {
         provider: 'openai',
         auth: { apiKey: '' }
       };
-      await expect(plugin.initialize(configNoApi)).rejects.toThrow(
+      await expect(plugin.initialize(configNoApi, new Map())).rejects.toThrow(
         `${plugin.name}: API key is missing in plugin configuration.`
       );
       expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining('API key is required'));
@@ -90,15 +90,15 @@ describe('LangchainPlugin', () => {
     
     it('should handle errors during ChatOpenAI client initialization', async () => {
         const initError = new Error("Failed to connect");
-        (ChatOpenAI as jest.Mock).mockImplementationOnce(() => { throw initError; });
-        await expect(plugin.initialize(defaultConfig)).rejects.toThrow(initError);
+        (ChatOpenAI as unknown as jest.Mock).mockImplementationOnce(() => { throw initError; });
+        await expect(plugin.initialize(defaultConfig, new Map())).rejects.toThrow(initError);
         expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining(`Failed to initialize ChatOpenAI client: ${initError.message}`));
     });
   });
 
   describe('invokeChain', () => {
     beforeEach(async () => {
-      await plugin.initialize(defaultConfig);
+      await plugin.initialize(defaultConfig, new Map());
     });
 
     it('should invoke LLMChain with given prompt and inputs, returning text', async () => {
@@ -147,7 +147,7 @@ describe('LangchainPlugin', () => {
 
   describe('chat', () => {
     beforeEach(async () => {
-      await plugin.initialize(defaultConfig);
+      await plugin.initialize(defaultConfig, new Map());
     });
 
     it('should invoke chat model with formatted messages and return AI content', async () => {
@@ -192,7 +192,7 @@ describe('LangchainPlugin', () => {
     });
 
     it('cleanup() should log info and nullify LLM', async () => {
-      await plugin.initialize(defaultConfig); // Initialize to have an LLM instance
+      await plugin.initialize(defaultConfig, new Map()); // Initialize to have an LLM instance
       expect(plugin.getLLM()).not.toBeNull();
       await plugin.cleanup();
       expect(Logger.info).toHaveBeenCalledWith(`${plugin.name}: cleanup() called. Releasing resources.`);

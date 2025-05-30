@@ -43,7 +43,7 @@ describe('WebSocketPlugin', () => {
     // Reset clients set for each test
     mockWebSocketServer.clients.clear();
     // Reset WebSocketServer mock to return a fresh mock server instance for each test
-    (WebSocketServer as jest.Mock).mockImplementation(() => {
+    (WebSocketServer as unknown as jest.Mock).mockImplementation(() => {
         // Clear previous .on listeners from the shared mockWebSocketServer object
         // This is important if the same mock object is reused across tests.
         // However, since jest.clearAllMocks() is called, this might be redundant
@@ -59,28 +59,28 @@ describe('WebSocketPlugin', () => {
 
   describe('Initialization', () => {
     it('should initialize with default config if none provided', async () => {
-      await plugin.initialize({}); // Plugin has internal default { port: 3001 }
+      await plugin.initialize({}, new Map()); // Plugin has internal default { port: 3001 }
       expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('initialized with config: {"port":3001}'));
     });
 
     it('should initialize with provided config', async () => {
-      await plugin.initialize(defaultConfig);
+      await plugin.initialize(defaultConfig, new Map());
       expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining(JSON.stringify(defaultConfig)));
     });
     
     it('should throw error if port is not configured (e.g. explicitly set to 0 or undefined)', async () => {
-        await expect(plugin.initialize({ port: 0 } as any)).rejects.toThrow('WebSocket Plugin: Port must be configured.');
+        await expect(plugin.initialize({ port: 0 } as any, new Map())).rejects.toThrow('WebSocket Plugin: Port must be configured.');
     });
   });
 
   describe('Start/Stop', () => {
     beforeEach(async () => {
-      await plugin.initialize(defaultConfig);
+      await plugin.initialize(defaultConfig, new Map());
     });
 
     it('should start the WebSocket server', async () => {
       // Simulate 'listening' event being emitted
-      (WebSocketServer as jest.Mock).mockImplementationOnce(() => {
+      (WebSocketServer as unknown as jest.Mock).mockImplementationOnce(() => {
         // Simulate 'listening' event
         process.nextTick(() => {
           const listeningCallback = mockWebSocketServer.on.mock.calls.find(call => call[0] === 'listening')?.[1];
@@ -100,7 +100,7 @@ describe('WebSocketPlugin', () => {
     
     it('should handle server error on start', async () => {
         const error = new Error('Server start failed');
-        (WebSocketServer as jest.Mock).mockImplementationOnce(() => {
+        (WebSocketServer as unknown as jest.Mock).mockImplementationOnce(() => {
             process.nextTick(() => {
                  const errorCallback = mockWebSocketServer.on.mock.calls.find(call => call[0] === 'error')?.[1];
                  if(errorCallback) errorCallback(error);
@@ -138,9 +138,9 @@ describe('WebSocketPlugin', () => {
     let clientMessageCallback: ((data: string) => void) | undefined;
 
     beforeEach(async () => {
-      await plugin.initialize(defaultConfig);
+      await plugin.initialize(defaultConfig, new Map());
       // Capture the 'connection' event handler
-      (WebSocketServer as jest.Mock).mockImplementationOnce(() => {
+      (WebSocketServer as unknown as jest.Mock).mockImplementationOnce(() => {
         mockWebSocketServer.on = jest.fn((event, cb) => {
           if (event === 'connection') {
             connectionCallback = cb;
@@ -192,7 +192,7 @@ describe('WebSocketPlugin', () => {
 
   describe('Send Method', () => {
     beforeEach(async () => {
-      await plugin.initialize(defaultConfig);
+      await plugin.initialize(defaultConfig, new Map());
       await plugin.start();
     });
 
@@ -222,7 +222,7 @@ describe('WebSocketPlugin', () => {
     
     it('should reject if send is called when server not started', async () => {
         const newPlugin = new WebSocketPlugin(); // Not started
-        await newPlugin.initialize(defaultConfig);
+        await newPlugin.initialize(defaultConfig, new Map());
         await expect(newPlugin.send("test")).rejects.toThrow('WebSocket server not running.');
     });
   });

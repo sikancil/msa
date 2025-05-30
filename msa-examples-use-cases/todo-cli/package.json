@@ -1,0 +1,27 @@
+{
+  "name": "msa-todo-cli",
+  "version": "0.1.0",
+  "description": "A simple Todo CLI tool example using @arifwidianto/msa-core and @arifwidianto/msa-plugin-stdio",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "lint": "eslint src/**/*.ts",
+    "clean": "rimraf dist",
+    "check": "npm run build && ts-node src/check.ts"
+  },
+  "dependencies": {
+    "@arifwidianto/msa-core": "file:../../packages/core",
+    "@arifwidianto/msa-plugin-stdio": "file:../../packages/plugin-stdio"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "ts-node": "^10.9.2",
+    "rimraf": "^5.0.5",
+    "@types/node": "^20.12.12",
+    "eslint": "^8.52.0",
+    "@typescript-eslint/eslint-plugin": "^6.9.1",
+    "@typescript-eslint/parser": "^6.9.1"
+  }
+}

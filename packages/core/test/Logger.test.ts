@@ -1,4 +1,14 @@
-// Import Logger and Config from their respective paths
+// Import L// Mock pino and pino-pretty
+jest.mock('pino', () => {
+  return jest.fn(() => ({
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+    setBindings: jest.fn(), // Mock this method as it's called in Logger.ts
+  }));
+});
+jest.mock('pino-pretty', () => jest.fn(), { virtual: true }); // Mock pino-pretty as virtual moduleConfig from their respective paths
 import { Logger } from '../src/Logger';
 import { Config } from '../src/Config';
 
@@ -18,15 +28,21 @@ const mockPinoInstance = {
   setBindings: jest.fn(), // Mock this method as it's called in Logger.ts
 };
 jest.mock('pino', () => jest.fn(() => mockPinoInstance));
-jest.mock('pino-pretty', () => jest.fn()); // Simple mock for pino-pretty
+jest.mock('pino-pretty', () => jest.fn(), { virtual: true }); // Mock pino-pretty as virtual module
 
 
 describe('Logger', () => {
+  let mockPinoInstance: any;
+
   beforeEach(() => {
     // Reset mocks before each test
     jest.clearAllMocks();
     // Default mock implementation for Config.get
     (Config.get as jest.Mock).mockReturnValue('info'); // Default log level
+    
+    // Get the mock pino instance for this test
+    const pino = require('pino');
+    mockPinoInstance = pino();
   });
 
   it('should initialize pino with default log level if LOG_LEVEL is not set', () => {
@@ -87,20 +103,10 @@ describe('Logger', () => {
     jest.resetModules();
     const FreshLogger = require('../src/Logger').Logger; // Get the Logger object
     const pino = require('pino'); // Get the pino module
+    const freshMockInstance = pino();
 
     // Check if setBindings was called, indicating a fallback
-    // This part of the test is tricky because of how pino itself is structured
-    // and how the logger instance is created and potentially modified.
-    // The original code has a try-catch for require.resolve('pino-pretty')
-    // If it fails, it calls logger.setBindings({}) which seems to be an attempt to reset/clear transport.
-    // For this test, we primarily care that pino was initialized. The internal fallback logic is harder to assert directly
-    // without more invasive mocking or observing side effects not present in the current Logger structure.
-    
-    // A simple check: pino was still called
     expect(pino).toHaveBeenCalled();
-    // And that our mocked setBindings was called on the instance pino returned
-    // This requires ensuring the instance pino() returns is the one we spy on.
-    // The current mock structure for pino ensures this.
-    expect(mockPinoInstance.setBindings).toHaveBeenCalledWith({}); // Check if it attempts to reset transport
+    expect(freshMockInstance.setBindings).toHaveBeenCalledWith({}); // Check if it attempts to reset transport
   });
 });

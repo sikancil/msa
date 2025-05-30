@@ -1,6 +1,6 @@
 // Forward declaration or import for Message and MessageHandler if they are complex types
 // For now, using 'any' as placeholders.
-export type Message = any; 
+export type Message = unknown; 
 export type MessageHandler = (message: Message) => void;
 
 export interface ITransport {
