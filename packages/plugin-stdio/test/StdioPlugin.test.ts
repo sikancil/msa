@@ -62,21 +62,21 @@ describe('StdioPlugin', () => {
 
   describe('Initialization', () => {
     it('should initialize with default config', async () => {
-      await plugin.initialize({});
+      await plugin.initialize({}, new Map());
       expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('initialized with config: {}'));
       expect(yargs).toHaveBeenCalled();
       expect(mockYargsInstance.scriptName).toHaveBeenCalled();
     });
 
     it('should initialize with provided config', async () => {
-      await plugin.initialize(defaultConfig);
+      await plugin.initialize(defaultConfig, new Map());
       expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining(JSON.stringify(defaultConfig)));
     });
   });
 
   describe('Command Handling', () => {
     beforeEach(async () => {
-      await plugin.initialize(defaultConfig);
+      await plugin.initialize(defaultConfig, new Map());
     });
 
     it('should add a command handler and register it with yargs', () => {
@@ -117,7 +117,7 @@ describe('StdioPlugin', () => {
 
   describe('Start Method', () => {
     beforeEach(async () => {
-      await plugin.initialize({ interactive: true }); // Enable interactive for some tests
+      await plugin.initialize({ interactive: true }, new Map()); // Enable interactive for some tests
     });
 
     it('should parse argv using yargs', async () => {
@@ -134,7 +134,7 @@ describe('StdioPlugin', () => {
     
     it('should show help if no command and interactive is false', async () => {
         const nonInteractivePlugin = new StdioPlugin();
-        await nonInteractivePlugin.initialize({ interactive: false });
+        await nonInteractivePlugin.initialize({ interactive: false }, new Map());
         (mockYargsInstance.parseAsync as jest.Mock).mockResolvedValueOnce({ _: [], $0: '' });
         await nonInteractivePlugin.start();
         expect(mockYargsInstance.showHelp).toHaveBeenCalled();
@@ -143,7 +143,7 @@ describe('StdioPlugin', () => {
   
   describe('Interactive Input', () => {
     beforeEach(async () => {
-      await plugin.initialize({ promptPrefix: 'test> ' });
+      await plugin.initialize({ promptPrefix: 'test> ' }, new Map());
     });
 
     it('startInteractiveInput should setup readline and prompt', () => {
@@ -183,7 +183,7 @@ describe('StdioPlugin', () => {
 
     beforeEach(async () => {
       consoleSpy.mockClear();
-      await plugin.initialize(defaultConfig);
+      await plugin.initialize(defaultConfig, new Map());
     });
 
     it('send() should print string message to console', async () => {
@@ -207,7 +207,7 @@ describe('StdioPlugin', () => {
 
     it('listen() should log and potentially start interactive input if configured', async () => {
         const interactivePlugin = new StdioPlugin();
-        await interactivePlugin.initialize({ interactive: true });
+        await interactivePlugin.initialize({ interactive: true }, new Map());
         const startInteractiveSpy = jest.spyOn(interactivePlugin, 'startInteractiveInput');
         
         // Calling listen() on its own might not trigger interactive mode based on current StdioPlugin logic.
@@ -232,7 +232,7 @@ describe('StdioPlugin', () => {
     it('prompt() should call inquirer.prompt', async () => {
         const questions = [{ type: 'input', name: 'testQ' }];
         const answers = { testQ: 'testA' };
-        (inquirer.prompt as jest.Mock).mockResolvedValueOnce(answers);
+        (inquirer.prompt as unknown as jest.Mock).mockResolvedValueOnce(answers);
 
         const result = await plugin.prompt(questions as any);
         expect(inquirer.prompt).toHaveBeenCalledWith(questions);
@@ -242,7 +242,7 @@ describe('StdioPlugin', () => {
 
   describe('Cleanup', () => {
     it('should log cleanup message and clear handlers', async () => {
-        await plugin.initialize(defaultConfig);
+        await plugin.initialize(defaultConfig, new Map());
         plugin.addCommandHandler('cmd', 'desc', {}, jest.fn());
         // @ts-ignore
         expect(plugin['commandHandlers'].size).toBeGreaterThan(0); // This is not how commands are stored in yargs

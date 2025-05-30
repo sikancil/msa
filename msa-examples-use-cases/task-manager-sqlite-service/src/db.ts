@@ -1,5 +1,5 @@
 import sqlite3 from 'sqlite3';
-import path from 'path';
+import * as path from 'path';
 import { promisify } from 'util';
 
 const dbPath = path.join(__dirname, '..', 'tasks.db'); // Puts tasks.db in project root
@@ -20,7 +20,7 @@ interface PromisifiedStatement extends sqlite3.Statement {
 }
 
 // Create/connect to the database
-const db = new sqlite3.Database(dbPath, (err) => {
+const db = new sqlite3.Database(dbPath, (err: Error | null) => {
   if (err) {
     console.error('Error opening database:', err.message);
     // Propagate the error or handle it as critical
@@ -34,7 +34,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
   return new Promise((resolve, reject) => {
     // sqlite3's `run` method's callback has `this` context providing `lastID` and `changes`
     // We use a function declaration for the callback to preserve `this`.
-    (this as sqlite3.Database).run(sql, params, function(err) {
+    (this as sqlite3.Database).run(sql, params, function(this: sqlite3.RunResult, err: Error | null) {
       if (err) {
         reject(err);
       } else {

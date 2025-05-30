@@ -1,7 +1,7 @@
 import { spawn, ChildProcess, execSync } from 'child_process';
 import axios, { AxiosInstance } from 'axios';
-import path from 'path';
-import { setTimeout } from 'timers/promises'; // For async delay
+import * as path from 'path';
+import { setTimeout as delay } from 'timers/promises'; // For async delay
 
 const USER_SERVICE_PORT = 3002;
 const POST_SERVICE_PORT = 3003;
@@ -128,7 +128,7 @@ async function runChecks() {
     );
     
     // Give services a moment to fully stabilize after "ready" log
-    await setTimeout(2000); 
+    await delay(2000); 
 
     logStep("Fetch post with ID 101 (Alice's post)");
     const response = await apiClient.get(`http://${HOST}:${POST_SERVICE_PORT}/posts/101`);
@@ -156,7 +156,7 @@ async function runChecks() {
     killProcess(userServiceProcess, 'user-service');
     
     // A small delay to allow processes to terminate before script exits
-    await setTimeout(1000);
+    await delay(1000);
 
     if (overallSuccess) {
       console.log("\n✅ All Inter-Service Communication checks PASSED!");

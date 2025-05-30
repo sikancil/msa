@@ -105,7 +105,7 @@ export class StdioPlugin implements IPlugin, ITransport {
     } else if (message === undefined) {
       console.log('undefined'); // Explicitly handle undefined
     } else {
-      console.log(message.toString()); // Ensure it's a string for other primitives
+      console.log((message as any).toString()); // Ensure it's a string for other primitives
     }
     return Promise.resolve();
   }

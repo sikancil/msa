@@ -18,19 +18,29 @@ const mockWebSocketInstance: {
   on: jest.Mock;
   send: jest.Mock;
   close: jest.Mock;
+  terminate: jest.Mock;
   readyState: number;
 } = {
   on: jest.fn(),
   send: jest.fn(),
   close: jest.fn(),
-  readyState: WebSocket.CLOSED, // Initial state
+  terminate: jest.fn(),
+  readyState: 3, // WebSocket.CLOSED
 };
-const WS_MOCK = jest.fn().mockImplementation(() => mockWebSocketInstance);
-(WS_MOCK as any).CONNECTING = 0;
-(WS_MOCK as any).OPEN = 1;
-(WS_MOCK as any).CLOSING = 2;
-(WS_MOCK as any).CLOSED = 3;
-jest.mock('ws', () => WS_MOCK);
+
+// Mock the 'ws' module
+jest.mock('ws', () => {
+  const WS_MOCK = jest.fn().mockImplementation(() => mockWebSocketInstance);
+  (WS_MOCK as any).CONNECTING = 0;
+  (WS_MOCK as any).OPEN = 1;
+  (WS_MOCK as any).CLOSING = 2;
+  (WS_MOCK as any).CLOSED = 3;
+  return {
+    __esModule: true,
+    default: WS_MOCK,
+    WebSocket: WS_MOCK
+  };
+});
 describe('MCPClient', () => {
   let client: MCPClient;
   const serverUrl = 'ws://localhost:8080/mcp';
@@ -42,6 +52,7 @@ describe('MCPClient', () => {
       on: jest.fn(),
       send: jest.fn(),
       close: jest.fn(),
+      terminate: jest.fn(),
       readyState: WebSocket.CLOSED,
     });
     client = new MCPClient(serverUrl);
@@ -68,7 +79,7 @@ describe('MCPClient', () => {
       const error = new Error('Connection failed');
       (mockWebSocketInstance.on as jest.Mock).mockImplementation((event, callback) => {
         if (event === 'error') {
-          callback(error); // Simulate 'error' event
+          setTimeout(() => callback(error), 0); // Simulate asynchronous 'error' event
         }
       });
       await expect(client.connect()).rejects.toThrow(error);
@@ -141,7 +152,11 @@ describe('MCPClient', () => {
       });
 
       // Simulate receiving a message
-      const messageHandler = (mockWebSocketInstance.on as jest.Mock).mock.calls.find(call => call[0] === 'message')[1];
+      const messageHandlerCall = (mockWebSocketInstance.on as jest.Mock).mock.calls.find(call => call[0] === 'message');
+      if (!messageHandlerCall) {
+        throw new Error('Message handler not found in mock calls');
+      }
+      const messageHandler = messageHandlerCall[1];
       messageHandler(JSON.stringify(response));
 
       expect(Logger.debug).toHaveBeenCalledWith(expect.stringContaining(JSON.stringify(response)));
@@ -160,7 +175,11 @@ describe('MCPClient', () => {
         payload: { info: 'System will restart' },
       };
 
-      const messageHandler = (mockWebSocketInstance.on as jest.Mock).mock.calls.find(call => call[0] === 'message')[1];
+      const messageHandlerCall = (mockWebSocketInstance.on as jest.Mock).mock.calls.find(call => call[0] === 'message');
+      if (!messageHandlerCall) {
+        throw new Error('Message handler not found in mock calls');
+      }
+      const messageHandler = messageHandlerCall[1];
       messageHandler(JSON.stringify(serverPushMessage));
 
       expect(customHandler).toHaveBeenCalledWith(serverPushMessage);
@@ -168,9 +187,13 @@ describe('MCPClient', () => {
 
     it('should handle JSON parsing errors gracefully', () => {
       const invalidJson = "{ not: json";
-      const messageHandler = (mockWebSocketInstance.on as jest.Mock).mock.calls.find(call => call[0] === 'message')[1];
+      const messageHandlerCall = (mockWebSocketInstance.on as jest.Mock).mock.calls.find(call => call[0] === 'message');
+      if (!messageHandlerCall) {
+        throw new Error('Message handler not found in mock calls');
+      }
+      const messageHandler = messageHandlerCall[1];
       messageHandler(invalidJson);
-      expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining(`Error handling incoming message: Unexpected token`));
+      expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining(`Error handling incoming message: Expected property name`));
     });
   });
 
@@ -181,6 +204,8 @@ describe('MCPClient', () => {
           mockWebSocketInstance.readyState = WebSocket.OPEN;
           callback();
         }
+        // Store all event handlers for later use in tests
+        return mockWebSocketInstance.on;
       });
       await client.connect();
     });
@@ -213,7 +238,11 @@ describe('MCPClient', () => {
         status: 'success',
         payload: { result: 'ok' }
       };
-      const messageHandler = (mockWebSocketInstance.on as jest.Mock).mock.calls.find(call => call[0] === 'message')[1];
+      const messageHandlerCall = (mockWebSocketInstance.on as jest.Mock).mock.calls.find(call => call[0] === 'message');
+      if (!messageHandlerCall) {
+        throw new Error('Message handler not found in mock calls');
+      }
+      const messageHandler = messageHandlerCall[1];
       messageHandler(JSON.stringify(mockResponse)); // Simulate server response
 
       await expect(responsePromise).resolves.toEqual(mockResponse);
@@ -227,11 +256,19 @@ describe('MCPClient', () => {
     });
 
     it('should throw error if not connected', async () => {
-      mockWebSocketInstance.readyState = WebSocket.CLOSED; // Simulate not connected
+      mockWebSocketInstance.readyState = 3; // WebSocket.CLOSED - Simulate not connected
       // MCPClient's sendRequest now tries to connect, so we need to ensure that connect also fails for this test.
       (WebSocket as unknown as jest.Mock).mockImplementationOnce(() => {
-        const ws = { ...mockWebSocketInstance, readyState: WebSocket.CONNECTING };
-        setTimeout(() => ws.on.mock.calls.find(c => c[0] === 'error')[1](new Error("Forced connect fail")), 50);
+        const ws = { 
+          ...mockWebSocketInstance, 
+          readyState: 0, // WebSocket.CONNECTING
+          on: jest.fn((event, callback) => {
+            if (event === 'error') {
+              // Use setImmediate instead of setTimeout to avoid async timing issues
+              setImmediate(() => callback(new Error("Forced connect fail")));
+            }
+          })
+        };
         return ws;
       });
       await expect(client.sendRequest('action', {})).rejects.toThrow('MCPClient: Connection failed. Cannot send request.');
@@ -254,7 +291,17 @@ describe('MCPClient', () => {
   });
 
   describe('Close', () => {
-    it('should close the WebSocket connection', () => {
+    it('should close the WebSocket connection', async () => {
+      // First connect to establish a WebSocket instance
+      (mockWebSocketInstance.on as jest.Mock).mockImplementation((event, callback) => {
+        if (event === 'open') {
+          mockWebSocketInstance.readyState = WebSocket.OPEN;
+          callback();
+        }
+      });
+      await client.connect();
+      
+      // Now test closing
       client.close();
       expect(mockWebSocketInstance.close).toHaveBeenCalled();
       expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('Manually closing connection'));

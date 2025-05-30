@@ -1,4 +1,4 @@
-import { IPlugin, Logger, ITransport, Message, MessageHandler, IPluginDependency } from '@arifwidianto/msa-core';
+import { IPlugin, Logger, ITransport, Message, MessageHandler } from '@arifwidianto/msa-core';
 import { LangchainPluginConfig } from './LangchainPluginConfig';
 import { ChatOpenAI } from '@langchain/openai';
 // import { LLMChain } from 'langchain/chains'; // Unused
@@ -8,7 +8,7 @@ import { BaseMessage, HumanMessage, AIMessage, SystemMessage } from '@langchain/
 export class LangchainPlugin implements IPlugin, ITransport {
   public readonly name = 'msa-plugin-langchain';
   public readonly version = '0.1.0';
-  public readonly dependencies: IPluginDependency[] = [];
+  public readonly dependencies: string[] = [];
 
   private config: LangchainPluginConfig = { provider: 'openai', auth: { apiKey: '' } }; // Default to empty, must be configured
   private llm: ChatOpenAI | null = null;
@@ -226,24 +226,24 @@ export class LangchainPlugin implements IPlugin, ITransport {
         ).join('\n');
       }
     } else if (message && typeof message === 'object') {
-      if (typeof message.content === 'string') {
+      if (typeof (message as any).content === 'string') {
         // Object with a direct content property
-        promptContent = message.content;
-      } else if (message.messages && Array.isArray(message.messages)) {
+        promptContent = (message as any).content;
+      } else if ((message as any).messages && Array.isArray((message as any).messages)) {
         // Object with a messages array (common pattern)
-        return this.send(message.messages); // Recursively process the messages array
-      } else if (message.prompt && typeof message.prompt === 'string') {
+        return this.send((message as any).messages); // Recursively process the messages array
+      } else if ((message as any).prompt && typeof (message as any).prompt === 'string') {
         // Object with a prompt property
-        promptContent = message.prompt;
-      } else if (message.query && typeof message.query === 'string') {
+        promptContent = (message as any).prompt;
+      } else if ((message as any).query && typeof (message as any).query === 'string') {
         // Object with a query property
-        promptContent = message.query;
-      } else if (message.text && typeof message.text === 'string') {
+        promptContent = (message as any).query;
+      } else if ((message as any).text && typeof (message as any).text === 'string') {
         // Object with a text property
-        promptContent = message.text;
-      } else if (message.input && typeof message.input === 'string') {
+        promptContent = (message as any).text;
+      } else if ((message as any).input && typeof (message as any).input === 'string') {
         // Object with an input property
-        promptContent = message.input;
+        promptContent = (message as any).input;
       } else {
         // Create a structured prompt from object properties
         const structuredPrompt = Object.entries(message)

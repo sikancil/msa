@@ -1,4 +1,4 @@
-import { IPlugin, Logger, ITransport, IPluginDependency } from '@arifwidianto/msa-core';
+import { IPlugin, Logger, ITransport } from '@arifwidianto/msa-core';
 import { MCPClient } from './MCPClient';
 import { MCPPluginConfig } from './MCPPluginConfig';
 import { MCPServer, MCPRequestHandler } from './MCPServer'; // Import MCPServer
@@ -14,7 +14,7 @@ import { MCPServer, MCPRequestHandler } from './MCPServer'; // Import MCPServer
 export class MCPPlugin implements IPlugin {
   public readonly name = 'msa-plugin-mcp';
   public readonly version = '0.1.0';
-  public readonly dependencies: IPluginDependency[] = [];
+  public readonly dependencies: string[] = [];
 
   private client: MCPClient | null = null;
   private serverInstance: MCPServer | null = null;

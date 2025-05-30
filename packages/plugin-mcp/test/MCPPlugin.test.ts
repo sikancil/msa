@@ -35,7 +35,7 @@ describe('MCPPlugin', () => {
 
   describe('Initialization', () => {
     it('should initialize MCPClient with serverUrl from config', async () => {
-      await plugin.initialize(config);
+      await plugin.initialize(config, new Map());
       expect(MCPClient).toHaveBeenCalledWith(config.serverUrl, undefined, undefined, undefined); // Check for optional params too
       expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining(`Initializing with server URL: ${config.serverUrl}`));
       expect(plugin.getClient()).toBe(mockMCPClientInstance);
@@ -43,7 +43,7 @@ describe('MCPPlugin', () => {
 
     it('should throw error if serverUrl is not provided', async () => {
       // Pass an empty object or a config without serverUrl
-      await expect(plugin.initialize({} as MCPPluginConfig)).rejects.toThrow(
+      await expect(plugin.initialize({} as MCPPluginConfig, new Map())).rejects.toThrow(
         `${plugin.name}: serverUrl is missing in plugin configuration.`
       );
       expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining('serverUrl is required'));
@@ -56,7 +56,7 @@ describe('MCPPlugin', () => {
             maxReconnectAttemptsClient: 10,
             reconnectIntervalClient: 2000
         };
-        await plugin.initialize(fullConfig);
+        await plugin.initialize(fullConfig, new Map());
         expect(MCPClient).toHaveBeenCalledWith(
             fullConfig.serverUrl,
             fullConfig.autoReconnectClient,
@@ -68,7 +68,7 @@ describe('MCPPlugin', () => {
 
   describe('Start', () => {
     it('should call connect on the MCPClient', async () => {
-      await plugin.initialize(config);
+      await plugin.initialize(config, new Map());
       await plugin.start();
       expect(mockMCPClientInstance.connect).toHaveBeenCalled();
       expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('MCPClient connected successfully.'));
@@ -81,7 +81,7 @@ describe('MCPPlugin', () => {
     it('should handle connection errors from MCPClient on start', async () => {
         const connectError = new Error("Connection refused");
         (mockMCPClientInstance.connect as jest.Mock).mockRejectedValueOnce(connectError);
-        await plugin.initialize(config);
+        await plugin.initialize(config, new Map());
         await expect(plugin.start()).rejects.toThrow(connectError);
         expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining(`Failed to connect MCPClient: ${connectError.message}`));
     });
@@ -89,7 +89,7 @@ describe('MCPPlugin', () => {
 
   describe('Stop', () => {
     it('should call close on the MCPClient', async () => {
-      await plugin.initialize(config);
+      await plugin.initialize(config, new Map());
       // await plugin.start(); // Not strictly necessary for stop test if client exists
       await plugin.stop();
       expect(mockMCPClientInstance.close).toHaveBeenCalled();
@@ -105,7 +105,7 @@ describe('MCPPlugin', () => {
 
   describe('Cleanup', () => {
     it('should close client and nullify resources', async () => {
-      await plugin.initialize(config);
+      await plugin.initialize(config, new Map());
       const clientInstance = plugin.getClient(); // Get instance before cleanup
       
       await plugin.cleanup();
@@ -121,7 +121,7 @@ describe('MCPPlugin', () => {
 
   describe('getClient', () => {
     it('should return the MCPClient instance after initialization', async () => {
-      await plugin.initialize(config);
+      await plugin.initialize(config, new Map());
       expect(plugin.getClient()).toBe(mockMCPClientInstance);
     });
 

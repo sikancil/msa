@@ -1,2 +1,2 @@
-export { HttpPlugin } from './HttpPlugin';
+export { HttpPlugin, HttpMessagePayload } from './HttpPlugin';
 export { HttpPluginConfig } from './HttpPluginConfig';

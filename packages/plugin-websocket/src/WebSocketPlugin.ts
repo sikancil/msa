@@ -2,18 +2,6 @@ import { IPlugin, PluginConfig, Logger, ITransport, Message, MessageHandler } fr
 import { WebSocketServer, WebSocket, RawData } from 'ws';
 import { WebSocketPluginConfig } from './WebSocketPluginConfig';
 
-export class WebSocketPlugin implements IPlugin, ITransport {
-  public readonly name = 'msa-plugin-websocket';
-  public readonly version = '0.1.0';
-  public readonly dependencies: string[] = []; // Changed to string[]
-
-  private wss: WebSocketServer | null = null;
-  private config: WebSocketPluginConfig = { port: 3001 }; // Default config
-  private messageHandler: MessageHandler | null = null;
-  private clients: Map<string, WebSocket> = new Map(); // Changed to Map for sendToClient
-  private nextClientId = 0;
-} // End of WebSocketPlugin class (temporarily to define interface outside)
-
 // Define a specific message structure for WebSocket messages
 // This allows the handler to know which client sent the message.
 export interface WebSocketMessagePayload {

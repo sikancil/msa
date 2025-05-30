@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Define the path for todos.json in the project root (msa-examples-use-cases/todo-cli/todos.json)
 // __dirname is src/, so ../ moves to project root.

@@ -1,6 +1,7 @@
 import { IPlugin, PluginConfig, Logger, ITransport, Message, MessageHandler } from '@arifwidianto/msa-core';
 import express, { Express, Request, Response, NextFunction, RequestHandler } from 'express';
 import http from 'http';
+import { AddressInfo } from 'net';
 import { HttpPluginConfig } from './HttpPluginConfig';
 
 // Define a specific message structure for HTTP
@@ -119,7 +120,7 @@ export class HttpPlugin implements IPlugin, ITransport {
     this.config.port = resolvedPort; // Update config with the port being used
 
     if (this.server?.listening) {
-      if (this.config.port === (this.server.address() as http.AddressInfo)?.port) {
+      if (this.config.port === (this.server.address() as AddressInfo)?.port) {
         Logger.info(`HTTP Plugin "${this.name}" is already listening on port ${this.config.port}.`);
         return Promise.resolve();
       } else {

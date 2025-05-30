@@ -20,7 +20,7 @@ const mockProcessExit = jest.fn().mockImplementation((code?: number) => {
 });
 
 global.process.on = mockProcessOn;
-(global.process.exit as jest.Mock) = mockProcessExit;
+global.process.exit = mockProcessExit as any;
 
 
 // Helper to create a mock plugin

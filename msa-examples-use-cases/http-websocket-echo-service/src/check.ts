@@ -1,6 +1,6 @@
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, execSync } from 'child_process';
 import axios from 'axios';
-import WebSocket from 'ws';
+import WebSocket, { RawData } from 'ws';
 import path from 'path';
 
 const HTTP_PORT = 3000;

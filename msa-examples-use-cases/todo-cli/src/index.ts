@@ -32,6 +32,7 @@ async function main() {
     (yargs) => yargs.positional('description', {
       describe: 'The description of the task',
       type: 'string',
+      array: true,
       demandOption: true, 
     }),
     async (argv) => {

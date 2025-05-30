@@ -1,4 +1,4 @@
-import { IPlugin, ITransport, Message, MessageHandler, IPluginDependency } from '@arifwidianto/msa-core'; // Service removed
+import { IPlugin, ITransport, Message, MessageHandler } from '@arifwidianto/msa-core'; // Service removed
 import { MessageBrokerPluginConfig } from './MessageBrokerPluginConfig';
 import { RabbitMQService } from './rabbitmq.service';
 import { RedisPubSubService } from './redis.service';
@@ -7,7 +7,7 @@ import { Logger } from '@arifwidianto/msa-core';
 export class MessageBrokerPlugin implements IPlugin, ITransport {
   public readonly name = 'msa-plugin-messagebroker';
   public readonly version = '0.1.0';
-  public readonly dependencies: IPluginDependency[] = [];
+  public readonly dependencies: string[] = [];
   
   private config!: MessageBrokerPluginConfig;
   private logger!: typeof Logger;
@@ -173,7 +173,7 @@ export class MessageBrokerPlugin implements IPlugin, ITransport {
     if (this.rabbitmqService) {
       const targetExchange = exchange || this.config.rabbitmq?.defaultExchange?.name || '';
       const targetRoutingKey = topicOrRoutingKey || '';
-      await this.rabbitmqService.publish(targetExchange, targetRoutingKey, message);
+      await this.rabbitmqService.publish(targetExchange, targetRoutingKey, message as Buffer | string | object);
       this.logger.debug(`ITransport/RabbitMQ: Message sent to exchange '${targetExchange}' with routingKey '${targetRoutingKey}'.`);
     } else if (this.redisService) {
       if (!topicOrRoutingKey) {
